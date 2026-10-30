@@ -1,0 +1,11 @@
+node_modules
+# Keep environment variables out of version control
+.env
+
+
+
+# Cliente Prisma generado
+/src/generated/prisma
+
+/dist
+/coverage

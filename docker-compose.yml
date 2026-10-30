@@ -1,0 +1,23 @@
+services:
+  base_datos:
+    image: mysql:8.4
+    container_name: ambulancias_galenos_db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_CONTRASENA}
+      MYSQL_DATABASE: ${DB_NOMBRE}
+      MYSQL_USER: ${DB_USUARIO}
+      MYSQL_PASSWORD: ${DB_CONTRASENA}
+    ports:
+      - '${DB_PUERTO}:3306'
+    volumes:
+      - datos_mysql:/var/lib/mysql
+      - ./docker/mysql/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ['CMD', 'mysqladmin', 'ping', '-h', 'localhost', '-u', 'root', '-p${DB_ROOT_CONTRASENA}']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  datos_mysql:

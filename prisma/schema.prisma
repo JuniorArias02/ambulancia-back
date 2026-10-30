@@ -1,0 +1,634 @@
+// Esquema Prisma de Ambulancias Galenos.
+//
+// Despacho de ambulancias + Historia Clínica Prehospitalaria (HCP) sencilla,
+// llenada por escucha continua desde el celular.
+//
+// Convención: modelos en PascalCase singular y campos en camelCase (español);
+// las tablas y columnas físicas usan snake_case plural mediante @@map / @map,
+// tal como están definidas en docs/ambulancias_galenos (1).dbml.
+
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  moduleFormat        = "esm"
+  importFileExtension = "js"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+// ==========================================
+// 1. USUARIOS Y ROLES
+// ==========================================
+
+model Rol {
+  id          String  @id @default(uuid()) @db.Char(36)
+  /// admin, despachador, paramedico, medico, conductor
+  nombre      String  @unique @db.VarChar(60)
+  descripcion String? @db.VarChar(255)
+
+  usuarios Usuario[]
+
+  @@map("roles")
+}
+
+model Usuario {
+  id                  String    @id @default(uuid()) @db.Char(36)
+  rolId               String    @map("rol_id") @db.Char(36)
+  nombres             String    @db.VarChar(100)
+  apellidos           String    @db.VarChar(100)
+  tipoDocumento       String?   @map("tipo_documento") @db.VarChar(30)
+  numeroDocumento     String?   @unique @map("numero_documento") @db.VarChar(40)
+  correo              String    @unique @db.VarChar(150)
+  telefono            String?   @db.VarChar(30)
+  /// ReTHUS / tarjeta profesional, para quien firma la HCP
+  registroProfesional String?   @map("registro_profesional") @db.VarChar(60)
+  contrasenaHash      String    @map("contrasena_hash") @db.VarChar(255)
+  estado              String    @default("activo") @db.VarChar(30)
+  ultimoAcceso        DateTime? @map("ultimo_acceso") @db.DateTime(3)
+  creadoEn            DateTime  @default(now()) @map("creado_en") @db.DateTime(3)
+
+  rol Rol @relation(fields: [rolId], references: [id])
+
+  sesiones                   Sesion[]
+  eventosAuditoria           AuditoriaEvento[]
+  turnos                     TurnoIntegrante[]
+  estadosAmbulanciaCambiados EstadoAmbulanciaHistorial[]
+  emergenciasRecibidas       Emergencia[]
+  asignacionesRealizadas     AsignacionServicio[]
+  eventosAsignacion          EventoAsignacion[]
+  historiasCreadas           HistoriaClinica[]           @relation("HistoriaCreadaPor")
+  historiasCerradas          HistoriaClinica[]           @relation("HistoriaCerradaPor")
+  signosVitales              SignoVital[]
+  intervenciones             Intervencion[]
+  grabaciones                Grabacion[]
+
+  @@map("usuarios")
+}
+
+model Sesion {
+  id         String    @id @default(uuid()) @db.Char(36)
+  usuarioId  String    @map("usuario_id") @db.Char(36)
+  tokenHash  String    @map("token_hash") @db.VarChar(255)
+  expiraEn   DateTime  @map("expira_en") @db.DateTime(3)
+  revocadaEn DateTime? @map("revocada_en") @db.DateTime(3)
+  creadaEn   DateTime  @default(now()) @map("creada_en") @db.DateTime(3)
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id])
+
+  @@index([usuarioId])
+  @@map("sesiones")
+}
+
+model AuditoriaEvento {
+  id        String   @id @default(uuid()) @db.Char(36)
+  usuarioId String?  @map("usuario_id") @db.Char(36)
+  entidad   String   @db.VarChar(100)
+  entidadId String   @map("entidad_id") @db.Char(36)
+  /// crear, editar, cerrar, anular, ver
+  accion    String   @db.VarChar(60)
+  /// valores antes/despues
+  detalle   Json?
+  creadoEn  DateTime @default(now()) @map("creado_en") @db.DateTime(3)
+
+  usuario Usuario? @relation(fields: [usuarioId], references: [id])
+
+  @@index([entidad, entidadId])
+  @@index([usuarioId, creadoEn])
+  @@map("auditoria_eventos")
+}
+
+// ==========================================
+// 2. AMBULANCIAS Y TRIPULACIONES
+// ==========================================
+
+model TipoAmbulancia {
+  id          String  @id @default(uuid()) @db.Char(36)
+  /// TAB (basica), TAM (medicalizada)
+  nombre      String  @unique @db.VarChar(80)
+  descripcion String? @db.VarChar(255)
+
+  ambulancias Ambulancia[]
+
+  @@map("tipos_ambulancia")
+}
+
+model Ambulancia {
+  id                String    @id @default(uuid()) @db.Char(36)
+  codigo            String    @unique @db.VarChar(30)
+  placa             String    @unique @db.VarChar(20)
+  tipoAmbulanciaId  String    @map("tipo_ambulancia_id") @db.Char(36)
+  /// disponible, en_servicio, fuera_servicio, mantenimiento
+  estadoOperativo   String    @default("fuera_servicio") @map("estado_operativo") @db.VarChar(40)
+  ultimaLatitud     Decimal?  @map("ultima_latitud") @db.Decimal(10, 7)
+  ultimaLongitud    Decimal?  @map("ultima_longitud") @db.Decimal(10, 7)
+  ultimaUbicacionEn DateTime? @map("ultima_ubicacion_en") @db.DateTime(3)
+  creadaEn          DateTime  @default(now()) @map("creada_en") @db.DateTime(3)
+
+  tipoAmbulancia TipoAmbulancia @relation(fields: [tipoAmbulanciaId], references: [id])
+
+  turnos           Turno[]
+  historialEstados EstadoAmbulanciaHistorial[]
+  asignaciones     AsignacionServicio[]
+  ubicaciones      UbicacionAmbulancia[]
+
+  @@map("ambulancias")
+}
+
+model Turno {
+  id           String    @id @default(uuid()) @db.Char(36)
+  ambulanciaId String    @map("ambulancia_id") @db.Char(36)
+  inicio       DateTime  @db.DateTime(3)
+  fin          DateTime? @db.DateTime(3)
+  estado       String    @default("activo") @db.VarChar(30)
+
+  ambulancia Ambulancia @relation(fields: [ambulanciaId], references: [id])
+
+  integrantes  TurnoIntegrante[]
+  asignaciones AsignacionServicio[]
+
+  @@map("turnos")
+}
+
+model TurnoIntegrante {
+  turnoId   String @map("turno_id") @db.Char(36)
+  usuarioId String @map("usuario_id") @db.Char(36)
+  /// conductor, paramedico, medico
+  funcion   String @db.VarChar(60)
+
+  turno   Turno   @relation(fields: [turnoId], references: [id])
+  usuario Usuario @relation(fields: [usuarioId], references: [id])
+
+  @@id([turnoId, usuarioId])
+  @@map("turnos_integrantes")
+}
+
+model EstadoAmbulanciaHistorial {
+  id             String   @id @default(uuid()) @db.Char(36)
+  ambulanciaId   String   @map("ambulancia_id") @db.Char(36)
+  estadoAnterior String?  @map("estado_anterior") @db.VarChar(40)
+  estadoNuevo    String   @map("estado_nuevo") @db.VarChar(40)
+  motivo         String?  @db.VarChar(255)
+  usuarioId      String?  @map("usuario_id") @db.Char(36)
+  cambiadoEn     DateTime @default(now()) @map("cambiado_en") @db.DateTime(3)
+
+  ambulancia Ambulancia @relation(fields: [ambulanciaId], references: [id])
+  usuario    Usuario?   @relation(fields: [usuarioId], references: [id])
+
+  @@map("estados_ambulancia_historial")
+}
+
+// ==========================================
+// 3. EMERGENCIAS Y DESPACHO
+// ==========================================
+
+model Emergencia {
+  id                    String    @id @default(uuid()) @db.Char(36)
+  numeroEmergencia      String    @unique @map("numero_emergencia") @db.VarChar(40)
+  /// linea_123, telefono, radio, app
+  fuente                String    @db.VarChar(40)
+  informanteNombre      String?   @map("informante_nombre") @db.VarChar(150)
+  informanteTelefono    String?   @map("informante_telefono") @db.VarChar(30)
+  descripcion           String    @db.Text
+  /// accidente_transito, caida, arma, quemadura, clinico, otro
+  tipoIncidente         String?   @map("tipo_incidente") @db.VarChar(60)
+  /// roja, amarilla, verde
+  prioridad             String?   @db.VarChar(30)
+  direccion             String?   @db.VarChar(255)
+  referenciaLugar       String?   @map("referencia_lugar") @db.VarChar(255)
+  latitud               Decimal?  @db.Decimal(10, 7)
+  longitud              Decimal?  @db.Decimal(10, 7)
+  numeroVictimas        Int?      @map("numero_victimas")
+  /// recibida, despachada, en_atencion, cerrada, cancelada
+  estado                String    @default("recibida") @db.VarChar(40)
+  /// si es una llamada duplicada, apunta a la emergencia original
+  emergenciaPrincipalId String?   @map("emergencia_principal_id") @db.Char(36)
+  recibidaPorId         String?   @map("recibida_por_id") @db.Char(36)
+  recibidaEn            DateTime  @default(now()) @map("recibida_en") @db.DateTime(3)
+  cerradaEn             DateTime? @map("cerrada_en") @db.DateTime(3)
+
+  emergenciaPrincipal Emergencia?  @relation("EmergenciaDuplicada", fields: [emergenciaPrincipalId], references: [id])
+  duplicadas          Emergencia[] @relation("EmergenciaDuplicada")
+  recibidaPor         Usuario?     @relation(fields: [recibidaPorId], references: [id])
+
+  asignaciones      AsignacionServicio[]
+  historiasClinicas HistoriaClinica[]
+
+  @@map("emergencias")
+}
+
+model AsignacionServicio {
+  id                String    @id @default(uuid()) @db.Char(36)
+  emergenciaId      String    @map("emergencia_id") @db.Char(36)
+  ambulanciaId      String    @map("ambulancia_id") @db.Char(36)
+  turnoId           String?   @map("turno_id") @db.Char(36)
+  asignadaPorId     String?   @map("asignada_por_id") @db.Char(36)
+  /// asignada, en_camino, en_escena, atendiendo, trasladando, finalizada, cancelada
+  estado            String    @default("asignada") @db.VarChar(40)
+  motivoCancelacion String?   @map("motivo_cancelacion") @db.VarChar(255)
+  asignadaEn        DateTime  @default(now()) @map("asignada_en") @db.DateTime(3)
+  salidaEn          DateTime? @map("salida_en") @db.DateTime(3)
+  llegadaEscenaEn   DateTime? @map("llegada_escena_en") @db.DateTime(3)
+  /// Inicio de la atención del paciente en la escena
+  atencionInicioEn  DateTime? @map("atencion_inicio_en") @db.DateTime(3)
+  salidaEscenaEn    DateTime? @map("salida_escena_en") @db.DateTime(3)
+  llegadaDestinoEn  DateTime? @map("llegada_destino_en") @db.DateTime(3)
+  finalizadaEn      DateTime? @map("finalizada_en") @db.DateTime(3)
+
+  emergencia  Emergencia @relation(fields: [emergenciaId], references: [id])
+  ambulancia  Ambulancia @relation(fields: [ambulanciaId], references: [id])
+  turno       Turno?     @relation(fields: [turnoId], references: [id])
+  asignadaPor Usuario?   @relation(fields: [asignadaPorId], references: [id])
+
+  ubicaciones       UbicacionAmbulancia[]
+  historiasClinicas HistoriaClinica[]
+  rutas             RutaAsignacion[]
+  eventos           EventoAsignacion[]
+
+  @@index([emergenciaId])
+  @@index([ambulanciaId, estado])
+  @@map("asignaciones_servicio")
+}
+
+/// Ruta por calles calculada para un servicio. Se guarda cada cálculo
+/// (despacho, desvío…): la vigente es la más reciente.
+model RutaAsignacion {
+  id                String   @id @default(uuid()) @db.Char(36)
+  asignacionId      String   @map("asignacion_id") @db.Char(36)
+  /// hacia_emergencia (luego: hacia_destino)
+  tramo             String   @db.VarChar(30)
+  /// despacho, desvio, sin_ruta
+  motivo            String   @db.VarChar(30)
+  origenLatitud     Decimal  @map("origen_latitud") @db.Decimal(10, 7)
+  origenLongitud    Decimal  @map("origen_longitud") @db.Decimal(10, 7)
+  destinoLatitud    Decimal  @map("destino_latitud") @db.Decimal(10, 7)
+  destinoLongitud   Decimal  @map("destino_longitud") @db.Decimal(10, 7)
+  /// Puntos de la ruta en orden: [[longitud, latitud], …] (orden GeoJSON)
+  geometria         Json
+  distanciaMetros   Int      @map("distancia_metros")
+  duracionSegundos  Int      @map("duracion_segundos")
+  proveedor         String   @db.VarChar(40)
+  calculadaEn       DateTime @default(now()) @map("calculada_en") @db.DateTime(3)
+
+  asignacion AsignacionServicio @relation(fields: [asignacionId], references: [id])
+
+  @@index([asignacionId, calculadaEn])
+  @@map("rutas_asignacion")
+}
+
+/// Cada paso del ciclo de atención de un servicio: quién, cuándo, dónde.
+/// Un estado se alcanza una sola vez por servicio (restricción única).
+model EventoAsignacion {
+  id                    String   @id @default(uuid()) @db.Char(36)
+  asignacionId          String   @map("asignacion_id") @db.Char(36)
+  /// null en el despacho (primer evento)
+  estadoAnterior        String?  @map("estado_anterior") @db.VarChar(40)
+  estadoNuevo           String   @map("estado_nuevo") @db.VarChar(40)
+  usuarioId             String?  @map("usuario_id") @db.Char(36)
+  /// Rol de quien registró el paso (conductor, paramedico, despachador…)
+  rolResponsable        String?  @map("rol_responsable") @db.VarChar(30)
+  ocurridoEn            DateTime @default(now()) @map("ocurrido_en") @db.DateTime(3)
+  /// Posición GPS enviada al registrar el paso (obligatoria en la llegada)
+  latitud               Decimal? @db.Decimal(10, 7)
+  longitud              Decimal? @db.Decimal(10, 7)
+  precisionMetros       Decimal? @map("precision_metros") @db.Decimal(7, 1)
+  /// Distancia a la emergencia al confirmar la llegada
+  distanciaEscenaMetros Decimal? @map("distancia_escena_metros") @db.Decimal(9, 1)
+  /// La llegada se confirmó fuera del radio, con motivo
+  fueraDeRadio          Boolean  @default(false) @map("fuera_de_radio")
+  observacion           String?  @db.VarChar(255)
+
+  asignacion AsignacionServicio @relation(fields: [asignacionId], references: [id])
+  usuario    Usuario?           @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+
+  @@unique([asignacionId, estadoNuevo])
+  @@index([asignacionId, ocurridoEn])
+  @@map("eventos_asignacion")
+}
+
+model UbicacionAmbulancia {
+  id           String   @id @default(uuid()) @db.Char(36)
+  ambulanciaId String   @map("ambulancia_id") @db.Char(36)
+  asignacionId String?  @map("asignacion_id") @db.Char(36)
+  latitud      Decimal  @db.Decimal(10, 7)
+  longitud     Decimal  @db.Decimal(10, 7)
+  velocidad    Decimal? @db.Decimal(8, 2)
+  registradaEn DateTime @map("registrada_en") @db.DateTime(3)
+
+  ambulancia Ambulancia          @relation(fields: [ambulanciaId], references: [id])
+  asignacion AsignacionServicio? @relation(fields: [asignacionId], references: [id])
+
+  @@index([ambulanciaId, registradaEn])
+  @@map("ubicaciones_ambulancias")
+}
+
+/// Caché de geocodificación: una fila por dirección normalizada, para no
+/// volver a consultar al proveedor externo por la misma dirección.
+model DireccionGeocodificada {
+  id                   String   @id @default(uuid()) @db.Char(36)
+  direccionOriginal    String   @map("direccion_original") @db.VarChar(255)
+  /// Clave de búsqueda: dirección + ciudad normalizadas (minúsculas, sin tildes, abreviaturas unificadas)
+  direccionNormalizada String   @unique @map("direccion_normalizada") @db.VarChar(320)
+  ciudad               String?  @db.VarChar(100)
+  /// Dirección tal como la devuelve el proveedor
+  direccionFormateada  String?  @map("direccion_formateada") @db.VarChar(255)
+  latitud              Decimal? @db.Decimal(10, 7)
+  longitud             Decimal? @db.Decimal(10, 7)
+  /// geoapify (luego otros: google, nominatim…)
+  proveedor            String   @db.VarChar(40)
+  /// place_id de Geoapify: codifica el nombre del lugar y puede pasar de 255
+  proveedorResultadoId String?  @map("proveedor_resultado_id") @db.VarChar(512)
+  /// 0 a 1, según el proveedor
+  confianza            Decimal? @db.Decimal(4, 3)
+  /// encontrada, no_encontrada
+  estado               String   @db.VarChar(30)
+  creadaEn             DateTime @default(now()) @map("creada_en") @db.DateTime(3)
+  actualizadaEn        DateTime @updatedAt @map("actualizada_en") @db.DateTime(3)
+
+  @@index([estado, actualizadaEn])
+  @@map("direcciones_geocodificadas")
+}
+
+/// Caché de geocodificación inversa: qué dirección corresponde a un punto
+/// del mapa. Una fila por punto redondeado a 5 decimales (~1 m).
+model GeocodificacionInversa {
+  id                   String   @id @default(uuid()) @db.Char(36)
+  /// Punto redondeado: "4.68552|-74.05285". Clave de la caché
+  clavePunto           String   @unique @map("clave_punto") @db.VarChar(40)
+  latitudSolicitada    Decimal  @map("latitud_solicitada") @db.Decimal(10, 7)
+  longitudSolicitada   Decimal  @map("longitud_solicitada") @db.Decimal(10, 7)
+  /// Dirección completa según el proveedor
+  direccion            String?  @db.VarChar(255)
+  /// Primera línea, la que se muestra en el formulario: "Cl 100 19 61"
+  lineaDireccion       String?  @map("linea_direccion") @db.VarChar(255)
+  calle                String?  @db.VarChar(150)
+  numero               String?  @db.VarChar(50)
+  barrio               String?  @db.VarChar(150)
+  ciudad               String?  @db.VarChar(100)
+  departamento         String?  @db.VarChar(100)
+  codigoPostal         String?  @map("codigo_postal") @db.VarChar(20)
+  pais                 String?  @db.VarChar(2)
+  /// Dónde está la dirección encontrada (puede no ser exactamente el punto)
+  latitudDireccion     Decimal? @map("latitud_direccion") @db.Decimal(10, 7)
+  longitudDireccion    Decimal? @map("longitud_direccion") @db.Decimal(10, 7)
+  distanciaMetros      Decimal? @map("distancia_metros") @db.Decimal(9, 1)
+  /// exacta, aproximada, zona
+  precision            String?  @db.VarChar(20)
+  proveedor            String   @db.VarChar(40)
+  proveedorResultadoId String?  @map("proveedor_resultado_id") @db.VarChar(512)
+  /// encontrada, no_encontrada
+  estado               String   @db.VarChar(30)
+  creadaEn             DateTime @default(now()) @map("creada_en") @db.DateTime(3)
+  actualizadaEn        DateTime @updatedAt @map("actualizada_en") @db.DateTime(3)
+
+  @@index([estado, actualizadaEn])
+  @@map("geocodificaciones_inversas")
+}
+
+model InstitucionSalud {
+  id                 String   @id @default(uuid()) @db.Char(36)
+  nombre             String   @db.VarChar(180)
+  codigoHabilitacion String?  @map("codigo_habilitacion") @db.VarChar(50)
+  nivelComplejidad   String?  @map("nivel_complejidad") @db.VarChar(20)
+  telefono           String?  @db.VarChar(30)
+  direccion          String?  @db.VarChar(255)
+  latitud            Decimal? @db.Decimal(10, 7)
+  longitud           Decimal? @db.Decimal(10, 7)
+  activa             Boolean  @default(true)
+
+  historiasClinicas HistoriaClinica[]
+
+  @@map("instituciones_salud")
+}
+
+// ==========================================
+// 4. HISTORIA CLINICA PREHOSPITALARIA (HCP)
+//    Una HCP = un paciente atendido en una emergencia.
+//    Todo es opcional salvo lo mínimo: en trauma grave
+//    primero se atiende, luego se completa.
+// ==========================================
+
+model HistoriaClinica {
+  /// UUID generado en el celular para poder trabajar sin señal
+  id             String  @id @default(uuid()) @db.Char(36)
+  numeroHistoria String  @unique @map("numero_historia") @db.VarChar(50)
+  emergenciaId   String  @map("emergencia_id") @db.Char(36)
+  asignacionId   String? @map("asignacion_id") @db.Char(36)
+
+  // --- Paciente (inline: en trauma muchas veces es NN) ---
+  pacienteIdentificado Boolean   @default(false) @map("paciente_identificado")
+  nombres              String?   @db.VarChar(150)
+  apellidos            String?   @db.VarChar(150)
+  tipoDocumento        String?   @map("tipo_documento") @db.VarChar(30)
+  numeroDocumento      String?   @map("numero_documento") @db.VarChar(40)
+  sexo                 String?   @db.VarChar(20)
+  edadAproximada       Int?      @map("edad_aproximada")
+  fechaNacimiento      DateTime? @map("fecha_nacimiento") @db.Date
+  aseguradoraEps       String?   @map("aseguradora_eps") @db.VarChar(120)
+  acompananteNombre    String?   @map("acompanante_nombre") @db.VarChar(150)
+  acompananteTelefono  String?   @map("acompanante_telefono") @db.VarChar(30)
+
+  // --- Evento / mecanismo ---
+  horaEvento          DateTime? @map("hora_evento") @db.DateTime(3)
+  /// transito, caida, arma_fuego, arma_blanca, quemadura, otro
+  tipoEvento          String?   @map("tipo_evento") @db.VarChar(60)
+  /// descripcion libre dictada
+  mecanismoLesion     String?   @map("mecanismo_lesion") @db.Text
+  /// conductor, pasajero, peaton, motociclista, ciclista (solo transito)
+  rolVictima          String?   @map("rol_victima") @db.VarChar(40)
+  /// casco, cinturon, ninguno
+  elementosProteccion String?   @map("elementos_proteccion") @db.VarChar(100)
+  /// transito: necesario para SOAT
+  placaVehiculo       String?   @map("placa_vehiculo") @db.VarChar(20)
+  polizaSoat          String?   @map("poliza_soat") @db.VarChar(60)
+
+  // --- Valoración primaria XABCDE ---
+  /// si/no + control: torniquete, presion directa
+  xHemorragiaMasiva String? @map("x_hemorragia_masiva") @db.VarChar(255)
+  aViaAerea         String? @map("a_via_aerea") @db.VarChar(255)
+  bRespiracion      String? @map("b_respiracion") @db.VarChar(255)
+  cCirculacion      String? @map("c_circulacion") @db.VarChar(255)
+  /// pupilas, focalizacion; Glasgow va en signos_vitales
+  dNeurologico      String? @map("d_neurologico") @db.VarChar(255)
+  eExposicion       String? @map("e_exposicion") @db.VarChar(255)
+  /// rojo, amarillo, verde, negro
+  triage            String? @db.VarChar(20)
+
+  // --- Datos complementarios (AMPLE corto) ---
+  alergias               String? @db.VarChar(255)
+  medicamentosHabituales String? @map("medicamentos_habituales") @db.VarChar(255)
+  antecedentes           String? @db.VarChar(255)
+
+  impresionDiagnostica String? @map("impresion_diagnostica") @db.Text
+  observaciones        String? @db.Text
+
+  // --- Desenlace ---
+  /// trasladado, rechazo_traslado, atendido_en_sitio, fallecido_en_sitio
+  desenlace            String?   @db.VarChar(40)
+  /// obligatorio si desenlace = rechazo_traslado
+  motivoRechazo        String?   @map("motivo_rechazo") @db.Text
+  /// imagen de la firma hecha en la pantalla del celular; solo si hay rechazo
+  firmaRechazoRef      String?   @map("firma_rechazo_ref") @db.VarChar(500)
+  institucionDestinoId String?   @map("institucion_destino_id") @db.Char(36)
+  condicionEntrega     String?   @map("condicion_entrega") @db.Text
+  receptorNombre       String?   @map("receptor_nombre") @db.VarChar(150)
+  receptorCargo        String?   @map("receptor_cargo") @db.VarChar(100)
+  entregadoEn          DateTime? @map("entregado_en") @db.DateTime(3)
+
+  // --- Control ---
+  /// borrador, cerrada, anulada
+  estado         String    @default("borrador") @db.VarChar(30)
+  creadaPorId    String    @map("creada_por_id") @db.Char(36)
+  /// profesional que revisa y firma
+  cerradaPorId   String?   @map("cerrada_por_id") @db.Char(36)
+  /// hash del contenido al firmar; despues de cerrada no se edita, solo se anula
+  hashCierre     String?   @map("hash_cierre") @db.VarChar(255)
+  abiertaEn      DateTime  @default(now()) @map("abierta_en") @db.DateTime(3)
+  cerradaEn      DateTime? @map("cerrada_en") @db.DateTime(3)
+  /// cuando llegó al servidor desde el celular
+  sincronizadaEn DateTime? @map("sincronizada_en") @db.DateTime(3)
+
+  emergencia         Emergencia          @relation(fields: [emergenciaId], references: [id])
+  asignacion         AsignacionServicio? @relation(fields: [asignacionId], references: [id])
+  institucionDestino InstitucionSalud?   @relation(fields: [institucionDestinoId], references: [id])
+  creadaPor          Usuario             @relation("HistoriaCreadaPor", fields: [creadaPorId], references: [id])
+  cerradaPor         Usuario?            @relation("HistoriaCerradaPor", fields: [cerradaPorId], references: [id])
+
+  signosVitales  SignoVital[]
+  lesiones       Lesion[]
+  intervenciones Intervencion[]
+  grabaciones    Grabacion[]
+
+  @@index([emergenciaId])
+  @@index([numeroDocumento])
+  @@index([estado, abiertaEn])
+  @@map("historias_clinicas")
+}
+
+// Serie de tomas: en un paciente grave se repiten varias veces
+model SignoVital {
+  id                     String   @id @default(uuid()) @db.Char(36)
+  historiaClinicaId      String   @map("historia_clinica_id") @db.Char(36)
+  medidoEn               DateTime @map("medido_en") @db.DateTime(3)
+  presionSistolica       Int?     @map("presion_sistolica")
+  presionDiastolica      Int?     @map("presion_diastolica")
+  frecuenciaCardiaca     Int?     @map("frecuencia_cardiaca")
+  frecuenciaRespiratoria Int?     @map("frecuencia_respiratoria")
+  saturacionOxigeno      Int?     @map("saturacion_oxigeno")
+  temperatura            Decimal? @db.Decimal(4, 1)
+  glucometria            Int?
+  glasgowOcular          Int?     @map("glasgow_ocular") @db.TinyInt
+  glasgowVerbal          Int?     @map("glasgow_verbal") @db.TinyInt
+  glasgowMotor           Int?     @map("glasgow_motor") @db.TinyInt
+  glasgowTotal           Int?     @map("glasgow_total") @db.TinyInt
+  escalaDolor            Int?     @map("escala_dolor") @db.TinyInt
+  /// manual, voz
+  origen                 String   @default("manual") @db.VarChar(20)
+  segmentoAudioId        String?  @map("segmento_audio_id") @db.Char(36)
+  /// true si es manual o si el paramedico aceptó la propuesta de la voz
+  confirmado             Boolean  @default(false)
+  registradoPorId        String   @map("registrado_por_id") @db.Char(36)
+
+  historiaClinica HistoriaClinica @relation(fields: [historiaClinicaId], references: [id])
+  segmentoAudio   SegmentoAudio?  @relation(fields: [segmentoAudioId], references: [id])
+  registradoPor   Usuario         @relation(fields: [registradoPorId], references: [id])
+
+  @@index([historiaClinicaId, medidoEn])
+  @@map("signos_vitales")
+}
+
+model Lesion {
+  id                String  @id @default(uuid()) @db.Char(36)
+  historiaClinicaId String  @map("historia_clinica_id") @db.Char(36)
+  /// cabeza, cuello, torax, abdomen, pelvis, miembro_sup_der, ...
+  regionCorporal    String  @map("region_corporal") @db.VarChar(60)
+  /// herida, fractura, quemadura, amputacion, contusion, ...
+  tipoLesion        String  @map("tipo_lesion") @db.VarChar(60)
+  descripcion       String? @db.VarChar(255)
+  /// manual, voz
+  origen            String  @default("manual") @db.VarChar(20)
+  segmentoAudioId   String? @map("segmento_audio_id") @db.Char(36)
+  /// true si es manual o si el paramedico aceptó la propuesta de la voz
+  confirmado        Boolean @default(false)
+
+  historiaClinica HistoriaClinica @relation(fields: [historiaClinicaId], references: [id])
+  segmentoAudio   SegmentoAudio?  @relation(fields: [segmentoAudioId], references: [id])
+
+  @@map("lesiones")
+}
+
+// Procedimientos y medicamentos en una sola tabla
+model Intervencion {
+  id                String    @id @default(uuid()) @db.Char(36)
+  historiaClinicaId String    @map("historia_clinica_id") @db.Char(36)
+  /// procedimiento, medicamento
+  tipo              String    @db.VarChar(30)
+  /// inmovilizacion, oxigeno, canalizacion, torniquete, SSN 0.9%, ...
+  nombre            String    @db.VarChar(150)
+  dosis             String?   @db.VarChar(60)
+  via               String?   @db.VarChar(40)
+  realizadoEn       DateTime? @map("realizado_en") @db.DateTime(3)
+  resultado         String?   @db.VarChar(255)
+  /// manual, voz
+  origen            String    @default("manual") @db.VarChar(20)
+  segmentoAudioId   String?   @map("segmento_audio_id") @db.Char(36)
+  /// true si es manual o si el paramedico aceptó la propuesta de la voz
+  confirmado        Boolean   @default(false)
+  registradoPorId   String    @map("registrado_por_id") @db.Char(36)
+
+  historiaClinica HistoriaClinica @relation(fields: [historiaClinicaId], references: [id])
+  segmentoAudio   SegmentoAudio?  @relation(fields: [segmentoAudioId], references: [id])
+  registradoPor   Usuario         @relation(fields: [registradoPorId], references: [id])
+
+  @@index([historiaClinicaId, realizadoEn])
+  @@map("intervenciones")
+}
+
+// Escucha continua: una grabación por atención, guardada por trozos
+// en el celular mientras se graba (no al final) y subida cuando hay señal
+model Grabacion {
+  id                 String    @id @default(uuid()) @db.Char(36)
+  historiaClinicaId  String    @map("historia_clinica_id") @db.Char(36)
+  iniciadaEn         DateTime  @map("iniciada_en") @db.DateTime(3)
+  finalizadaEn       DateTime? @map("finalizada_en") @db.DateTime(3)
+  /// grabando, subiendo, completa, error
+  estado             String    @default("grabando") @db.VarChar(30)
+  motorTranscripcion String?   @map("motor_transcripcion") @db.VarChar(80)
+  grabadoPorId       String    @map("grabado_por_id") @db.Char(36)
+
+  historiaClinica HistoriaClinica @relation(fields: [historiaClinicaId], references: [id])
+  grabadoPor      Usuario         @relation(fields: [grabadoPorId], references: [id])
+
+  segmentos SegmentoAudio[]
+
+  @@index([historiaClinicaId])
+  @@map("grabaciones")
+}
+
+model SegmentoAudio {
+  id             String   @id @default(uuid()) @db.Char(36)
+  grabacionId    String   @map("grabacion_id") @db.Char(36)
+  orden          Int
+  /// segundo dentro de la grabacion
+  inicioSeg      Decimal  @map("inicio_seg") @db.Decimal(8, 2)
+  finSeg         Decimal? @map("fin_seg") @db.Decimal(8, 2)
+  /// null hasta que se sube desde el celular; almacenamiento cifrado
+  audioRef       String?  @map("audio_ref") @db.VarChar(500)
+  /// paramedico, paciente, acompanante, desconocido
+  hablante       String?  @db.VarChar(30)
+  transcripcion  String?  @db.Text
+  /// campos propuestos por la API para este trozo
+  datosExtraidos Json?    @map("datos_extraidos")
+  /// pendiente, transcrito, subido, error
+  estado         String   @default("pendiente") @db.VarChar(30)
+
+  grabacion Grabacion @relation(fields: [grabacionId], references: [id])
+
+  signosVitales  SignoVital[]
+  lesiones       Lesion[]
+  intervenciones Intervencion[]
+
+  @@unique([grabacionId, orden])
+  @@map("segmentos_audio")
+}

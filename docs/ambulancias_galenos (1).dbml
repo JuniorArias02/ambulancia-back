@@ -1,0 +1,384 @@
+Project ambulancias_galenos {
+  database_type: 'MySQL'
+  Note: 'Despacho de ambulancias + Historia Clinica Prehospitalaria (HCP) sencilla, llenada por escucha continua desde el celular'
+}
+
+// ==========================================
+// 1. USUARIOS Y ROLES (simplificado)
+// ==========================================
+
+Table roles {
+  id char(36) [pk]
+  nombre varchar(60) [unique, not null, note: 'admin, despachador, paramedico, medico, conductor']
+  descripcion varchar(255)
+}
+
+Table usuarios {
+  id char(36) [pk]
+  rol_id char(36) [not null]
+  nombres varchar(100) [not null]
+  apellidos varchar(100) [not null]
+  tipo_documento varchar(30)
+  numero_documento varchar(40) [unique]
+  correo varchar(150) [unique, not null]
+  telefono varchar(30)
+  registro_profesional varchar(60) [note: 'ReTHUS / tarjeta profesional, para quien firma la HCP']
+  contrasena_hash varchar(255) [not null]
+  estado varchar(30) [not null, default: 'activo']
+  ultimo_acceso datetime
+  creado_en datetime [not null]
+}
+
+Table auditoria_eventos {
+  id char(36) [pk]
+  usuario_id char(36)
+  entidad varchar(100) [not null]
+  entidad_id char(36) [not null]
+  accion varchar(60) [not null, note: 'crear, editar, cerrar, anular, ver']
+  detalle json [note: 'valores antes/despues']
+  creado_en datetime [not null]
+
+  indexes {
+    (entidad, entidad_id)
+    (usuario_id, creado_en)
+  }
+}
+
+// ==========================================
+// 2. AMBULANCIAS Y TRIPULACIONES
+// ==========================================
+
+Table tipos_ambulancia {
+  id char(36) [pk]
+  nombre varchar(80) [unique, not null, note: 'TAB (basica), TAM (medicalizada)']
+  descripcion varchar(255)
+}
+
+Table ambulancias {
+  id char(36) [pk]
+  codigo varchar(30) [unique, not null]
+  placa varchar(20) [unique, not null]
+  tipo_ambulancia_id char(36) [not null]
+  estado_operativo varchar(40) [not null, default: 'fuera_servicio', note: 'disponible, en_servicio, fuera_servicio, mantenimiento']
+  ultima_latitud decimal(10,7)
+  ultima_longitud decimal(10,7)
+  ultima_ubicacion_en datetime
+  creada_en datetime [not null]
+}
+
+Table turnos {
+  id char(36) [pk]
+  ambulancia_id char(36) [not null]
+  inicio datetime [not null]
+  fin datetime
+  estado varchar(30) [not null, default: 'activo']
+}
+
+Table turnos_integrantes {
+  turno_id char(36) [not null]
+  usuario_id char(36) [not null]
+  funcion varchar(60) [not null, note: 'conductor, paramedico, medico']
+
+  indexes {
+    (turno_id, usuario_id) [pk]
+  }
+}
+
+Table estados_ambulancia_historial {
+  id char(36) [pk]
+  ambulancia_id char(36) [not null]
+  estado_anterior varchar(40)
+  estado_nuevo varchar(40) [not null]
+  motivo varchar(255)
+  usuario_id char(36)
+  cambiado_en datetime [not null]
+}
+
+// ==========================================
+// 3. EMERGENCIAS Y DESPACHO
+// ==========================================
+
+Table emergencias {
+  id char(36) [pk]
+  numero_emergencia varchar(40) [unique, not null]
+  fuente varchar(40) [not null, note: 'linea_123, telefono, radio, app']
+  informante_nombre varchar(150)
+  informante_telefono varchar(30)
+  descripcion text [not null]
+  tipo_incidente varchar(60) [note: 'accidente_transito, caida, arma, quemadura, clinico, otro']
+  prioridad varchar(30) [note: 'roja, amarilla, verde']
+  direccion varchar(255)
+  referencia_lugar varchar(255)
+  latitud decimal(10,7)
+  longitud decimal(10,7)
+  numero_victimas int
+  estado varchar(40) [not null, default: 'recibida', note: 'recibida, despachada, en_atencion, cerrada, cancelada']
+  emergencia_principal_id char(36) [note: 'si es una llamada duplicada, apunta a la emergencia original']
+  recibida_por_id char(36)
+  recibida_en datetime [not null]
+  cerrada_en datetime
+}
+
+Table asignaciones_servicio {
+  id char(36) [pk]
+  emergencia_id char(36) [not null]
+  ambulancia_id char(36) [not null]
+  turno_id char(36)
+  asignada_por_id char(36)
+  estado varchar(40) [not null, default: 'asignada', note: 'asignada, en_camino, en_escena, trasladando, finalizada, cancelada']
+  motivo_cancelacion varchar(255)
+  asignada_en datetime [not null]
+  salida_en datetime
+  llegada_escena_en datetime
+  salida_escena_en datetime
+  llegada_destino_en datetime
+  finalizada_en datetime
+
+  indexes {
+    (emergencia_id)
+    (ambulancia_id, estado)
+  }
+}
+
+Table ubicaciones_ambulancias {
+  id char(36) [pk]
+  ambulancia_id char(36) [not null]
+  asignacion_id char(36)
+  latitud decimal(10,7) [not null]
+  longitud decimal(10,7) [not null]
+  velocidad decimal(8,2)
+  registrada_en datetime [not null]
+
+  indexes {
+    (ambulancia_id, registrada_en)
+  }
+}
+
+Table instituciones_salud {
+  id char(36) [pk]
+  nombre varchar(180) [not null]
+  codigo_habilitacion varchar(50)
+  nivel_complejidad varchar(20)
+  telefono varchar(30)
+  direccion varchar(255)
+  latitud decimal(10,7)
+  longitud decimal(10,7)
+  activa boolean [not null, default: true]
+}
+
+// ==========================================
+// 4. HISTORIA CLINICA PREHOSPITALARIA (HCP)
+//    Una HCP = un paciente atendido en una emergencia.
+//    Todo es opcional salvo lo minimo: en trauma grave
+//    primero se atiende, luego se completa.
+// ==========================================
+
+Table historias_clinicas {
+  id char(36) [pk, note: 'UUID generado en el celular para poder trabajar sin senal']
+  numero_historia varchar(50) [unique, not null]
+  emergencia_id char(36) [not null]
+  asignacion_id char(36)
+
+  // --- Paciente (inline: en trauma muchas veces es NN) ---
+  paciente_identificado boolean [not null, default: false]
+  nombres varchar(150)
+  apellidos varchar(150)
+  tipo_documento varchar(30)
+  numero_documento varchar(40)
+  sexo varchar(20)
+  edad_aproximada int
+  fecha_nacimiento date
+  aseguradora_eps varchar(120)
+  acompanante_nombre varchar(150)
+  acompanante_telefono varchar(30)
+
+  // --- Evento / mecanismo ---
+  hora_evento datetime
+  tipo_evento varchar(60) [note: 'transito, caida, arma_fuego, arma_blanca, quemadura, otro']
+  mecanismo_lesion text [note: 'descripcion libre dictada']
+  rol_victima varchar(40) [note: 'conductor, pasajero, peaton, motociclista, ciclista (solo transito)']
+  elementos_proteccion varchar(100) [note: 'casco, cinturon, ninguno']
+  placa_vehiculo varchar(20) [note: 'transito: necesario para SOAT']
+  poliza_soat varchar(60)
+
+  // --- Valoracion primaria XABCDE ---
+  x_hemorragia_masiva varchar(255) [note: 'si/no + control: torniquete, presion directa']
+  a_via_aerea varchar(255)
+  b_respiracion varchar(255)
+  c_circulacion varchar(255)
+  d_neurologico varchar(255) [note: 'pupilas, focalizacion; Glasgow va en signos_vitales']
+  e_exposicion varchar(255)
+  triage varchar(20) [note: 'rojo, amarillo, verde, negro']
+
+  // --- Datos complementarios (AMPLE corto) ---
+  alergias varchar(255)
+  medicamentos_habituales varchar(255)
+  antecedentes varchar(255)
+
+  impresion_diagnostica text
+  observaciones text
+
+  // --- Desenlace ---
+  desenlace varchar(40) [note: 'trasladado, rechazo_traslado, atendido_en_sitio, fallecido_en_sitio']
+  motivo_rechazo text [note: 'obligatorio si desenlace = rechazo_traslado']
+  firma_rechazo_ref varchar(500) [note: 'imagen de la firma hecha en la pantalla del celular; solo si hay rechazo']
+  institucion_destino_id char(36)
+  condicion_entrega text
+  receptor_nombre varchar(150)
+  receptor_cargo varchar(100)
+  entregado_en datetime
+
+  // --- Control ---
+  estado varchar(30) [not null, default: 'borrador', note: 'borrador, cerrada, anulada']
+  creada_por_id char(36) [not null]
+  cerrada_por_id char(36) [note: 'profesional que revisa y firma']
+  hash_cierre varchar(255) [note: 'hash del contenido al firmar; despues de cerrada no se edita, solo se anula']
+  abierta_en datetime [not null]
+  cerrada_en datetime
+  sincronizada_en datetime [note: 'cuando llego al servidor desde el celular']
+
+  indexes {
+    (emergencia_id)
+    (numero_documento)
+    (estado, abierta_en)
+  }
+}
+
+// Serie de tomas: en un paciente grave se repiten varias veces
+Table signos_vitales {
+  id char(36) [pk]
+  historia_clinica_id char(36) [not null]
+  medido_en datetime [not null]
+  presion_sistolica int
+  presion_diastolica int
+  frecuencia_cardiaca int
+  frecuencia_respiratoria int
+  saturacion_oxigeno int
+  temperatura decimal(4,1)
+  glucometria int
+  glasgow_ocular tinyint
+  glasgow_verbal tinyint
+  glasgow_motor tinyint
+  glasgow_total tinyint
+  escala_dolor tinyint
+  origen varchar(20) [not null, default: 'manual', note: 'manual, voz']
+  segmento_audio_id char(36)
+  confirmado boolean [not null, default: false, note: 'true si es manual o si el paramedico acepto la propuesta de la voz']
+  registrado_por_id char(36) [not null]
+
+  indexes {
+    (historia_clinica_id, medido_en)
+  }
+}
+
+Table lesiones {
+  id char(36) [pk]
+  historia_clinica_id char(36) [not null]
+  region_corporal varchar(60) [not null, note: 'cabeza, cuello, torax, abdomen, pelvis, miembro_sup_der, ...']
+  tipo_lesion varchar(60) [not null, note: 'herida, fractura, quemadura, amputacion, contusion, ...']
+  descripcion varchar(255)
+  origen varchar(20) [not null, default: 'manual', note: 'manual, voz']
+  segmento_audio_id char(36)
+  confirmado boolean [not null, default: false, note: 'true si es manual o si el paramedico acepto la propuesta de la voz']
+}
+
+// Procedimientos y medicamentos en una sola tabla
+Table intervenciones {
+  id char(36) [pk]
+  historia_clinica_id char(36) [not null]
+  tipo varchar(30) [not null, note: 'procedimiento, medicamento']
+  nombre varchar(150) [not null, note: 'inmovilizacion, oxigeno, canalizacion, torniquete, SSN 0.9%, ...']
+  dosis varchar(60)
+  via varchar(40)
+  realizado_en datetime
+  resultado varchar(255)
+  origen varchar(20) [not null, default: 'manual', note: 'manual, voz']
+  segmento_audio_id char(36)
+  confirmado boolean [not null, default: false, note: 'true si es manual o si el paramedico acepto la propuesta de la voz']
+  registrado_por_id char(36) [not null]
+
+  indexes {
+    (historia_clinica_id, realizado_en)
+  }
+}
+
+// Escucha continua: una grabacion por atencion, guardada por trozos
+// en el celular mientras se graba (no al final) y subida cuando hay senal
+Table grabaciones {
+  id char(36) [pk]
+  historia_clinica_id char(36) [not null]
+  iniciada_en datetime [not null]
+  finalizada_en datetime
+  estado varchar(30) [not null, default: 'grabando', note: 'grabando, subiendo, completa, error']
+  motor_transcripcion varchar(80)
+  grabado_por_id char(36) [not null]
+
+  indexes {
+    (historia_clinica_id)
+  }
+}
+
+Table segmentos_audio {
+  id char(36) [pk]
+  grabacion_id char(36) [not null]
+  orden int [not null]
+  inicio_seg decimal(8,2) [not null, note: 'segundo dentro de la grabacion']
+  fin_seg decimal(8,2)
+  audio_ref varchar(500) [note: 'null hasta que se sube desde el celular; almacenamiento cifrado']
+  hablante varchar(30) [note: 'paramedico, paciente, acompanante, desconocido']
+  transcripcion text
+  datos_extraidos json [note: 'campos propuestos por la API para este trozo']
+  estado varchar(30) [not null, default: 'pendiente', note: 'pendiente, transcrito, subido, error']
+
+  indexes {
+    (grabacion_id, orden) [unique]
+  }
+}
+
+// ==========================================
+// RELACIONES
+// ==========================================
+
+// Seguridad
+Ref: usuarios.rol_id > roles.id
+Ref: auditoria_eventos.usuario_id > usuarios.id
+
+// Flota
+Ref: ambulancias.tipo_ambulancia_id > tipos_ambulancia.id
+Ref: turnos.ambulancia_id > ambulancias.id
+Ref: turnos_integrantes.turno_id > turnos.id
+Ref: turnos_integrantes.usuario_id > usuarios.id
+Ref: estados_ambulancia_historial.ambulancia_id > ambulancias.id
+Ref: estados_ambulancia_historial.usuario_id > usuarios.id
+
+// Emergencias y despacho
+Ref: emergencias.recibida_por_id > usuarios.id
+Ref: emergencias.emergencia_principal_id > emergencias.id
+Ref: asignaciones_servicio.emergencia_id > emergencias.id
+Ref: asignaciones_servicio.ambulancia_id > ambulancias.id
+Ref: asignaciones_servicio.turno_id > turnos.id
+Ref: asignaciones_servicio.asignada_por_id > usuarios.id
+Ref: ubicaciones_ambulancias.ambulancia_id > ambulancias.id
+Ref: ubicaciones_ambulancias.asignacion_id > asignaciones_servicio.id
+
+// Historia clinica
+Ref: historias_clinicas.emergencia_id > emergencias.id
+Ref: historias_clinicas.asignacion_id > asignaciones_servicio.id
+Ref: historias_clinicas.institucion_destino_id > instituciones_salud.id
+Ref: historias_clinicas.creada_por_id > usuarios.id
+Ref: historias_clinicas.cerrada_por_id > usuarios.id
+
+Ref: signos_vitales.historia_clinica_id > historias_clinicas.id
+Ref: signos_vitales.segmento_audio_id > segmentos_audio.id
+Ref: signos_vitales.registrado_por_id > usuarios.id
+
+Ref: lesiones.historia_clinica_id > historias_clinicas.id
+Ref: lesiones.segmento_audio_id > segmentos_audio.id
+
+Ref: intervenciones.historia_clinica_id > historias_clinicas.id
+Ref: intervenciones.segmento_audio_id > segmentos_audio.id
+Ref: intervenciones.registrado_por_id > usuarios.id
+
+Ref: grabaciones.historia_clinica_id > historias_clinicas.id
+Ref: grabaciones.grabado_por_id > usuarios.id
+Ref: segmentos_audio.grabacion_id > grabaciones.id
