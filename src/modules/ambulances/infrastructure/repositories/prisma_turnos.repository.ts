@@ -6,15 +6,24 @@ import type {
 } from '../../../../common/types/resultado_paginado.js';
 import { PrismaService } from '../../../../database/prisma.service.js';
 import type { Prisma } from '../../../../generated/prisma/client.js';
+import type { Ambulancia } from '../../domain/entities/ambulancia.entity.js';
+import type { CambioEstadoAmbulancia } from '../../domain/entities/cambio_estado_ambulancia.entity.js';
 import {
   ESTADOS_TURNO,
   FUNCIONES_TRIPULANTE,
+  type NuevoIntegrante,
   Turno,
 } from '../../domain/entities/turno.entity.js';
 import {
+  type BloqueoTripulacion,
   type FiltrosTurnos,
+  type OperacionesTripulacion,
   TurnosRepositorio,
 } from '../../domain/repositories/turnos.repository.js';
+import {
+  ambulanciaDesdeRegistro,
+  seleccionAmbulancia,
+} from './prisma_ambulancias.repository.js';
 
 const seleccionTurno = {
   id: true,
@@ -34,6 +43,9 @@ const seleccionTurno = {
 
 type RegistroTurno = Prisma.TurnoGetPayload<{ select: typeof seleccionTurno }>;
 
+/** Con varias selecciones a la vez, la transacción espera su turno en el bloqueo. */
+const OPCIONES_TRANSACCION = { maxWait: 5_000, timeout: 10_000 };
+
 @Injectable()
 export class PrismaTurnosRepositorio extends TurnosRepositorio {
   constructor(private readonly prisma: PrismaService) {
@@ -45,7 +57,7 @@ export class PrismaTurnosRepositorio extends TurnosRepositorio {
       where: { id },
       select: seleccionTurno,
     });
-    return registro ? this.aEntidad(registro) : null;
+    return registro ? turnoDesdeRegistro(registro) : null;
   }
 
   async buscarActivoDeAmbulancia(ambulanciaId: string): Promise<Turno | null> {
@@ -53,7 +65,7 @@ export class PrismaTurnosRepositorio extends TurnosRepositorio {
       where: { ambulanciaId, estado: 'activo' },
       select: seleccionTurno,
     });
-    return registro ? this.aEntidad(registro) : null;
+    return registro ? turnoDesdeRegistro(registro) : null;
   }
 
   async buscarActivoDeUsuario(usuarioId: string): Promise<Turno | null> {
@@ -61,7 +73,7 @@ export class PrismaTurnosRepositorio extends TurnosRepositorio {
       where: { estado: 'activo', integrantes: { some: { usuarioId } } },
       select: seleccionTurno,
     });
-    return registro ? this.aEntidad(registro) : null;
+    return registro ? turnoDesdeRegistro(registro) : null;
   }
 
   async listar(
@@ -86,100 +98,164 @@ export class PrismaTurnosRepositorio extends TurnosRepositorio {
       }),
     ]);
     return {
-      datos: registros.map((registro) => this.aEntidad(registro)),
+      datos: registros.map((registro) => turnoDesdeRegistro(registro)),
       total,
       pagina,
       limite,
     };
   }
 
-  async crear(turno: Turno): Promise<Turno> {
-    const registro = await this.prisma.$transaction(async (tx) => {
-      // Bloquea la fila de la ambulancia: dos turnos simultáneos no pasan ambos.
-      await tx.$queryRaw`SELECT id FROM ambulancias WHERE id = ${turno.ambulanciaId} FOR UPDATE`;
-      const activos = await tx.turno.count({
-        where: { ambulanciaId: turno.ambulanciaId, estado: 'activo' },
-      });
-      if (activos > 0) {
-        throw new ConflictoNegocioError(
-          'La ambulancia ya tiene un turno activo',
-        );
+  async listarActivos(): Promise<Turno[]> {
+    const registros = await this.prisma.turno.findMany({
+      where: { estado: 'activo' },
+      select: seleccionTurno,
+    });
+    return registros.map((registro) => turnoDesdeRegistro(registro));
+  }
+
+  enExclusiva<T>(
+    { usuarioId, ambulanciaId }: BloqueoTripulacion,
+    trabajo: (operaciones: OperacionesTripulacion) => Promise<T>,
+  ): Promise<T> {
+    return this.prisma.$transaction(async (tx) => {
+      // Primero la ambulancia: al guardar el turno, la clave foránea también toma
+      // las filas de sus otros tripulantes. En el orden inverso, dos personas de la
+      // misma ambulancia se esperarían entre sí (deadlock probado con carga real).
+      await tx.$queryRaw`SELECT id FROM ambulancias WHERE id = ${ambulanciaId} FOR UPDATE`;
+      if (usuarioId) {
+        await tx.$queryRaw`SELECT id FROM usuarios WHERE id = ${usuarioId} FOR UPDATE`;
       }
-      return tx.turno.create({
-        data: {
-          id: turno.id,
-          ambulanciaId: turno.ambulanciaId,
-          inicio: turno.inicio,
-          estado: turno.estado,
-          integrantes: {
-            create: turno.integrantes.map((i) => ({
-              usuarioId: i.usuarioId,
-              funcion: i.funcion,
-            })),
-          },
+      return trabajo(new OperacionesTripulacionPrisma(tx));
+    }, OPCIONES_TRANSACCION);
+  }
+}
+
+class OperacionesTripulacionPrisma implements OperacionesTripulacion {
+  constructor(private readonly tx: Prisma.TransactionClient) {}
+
+  async buscarAmbulancia(id: string): Promise<Ambulancia | null> {
+    const registro = await this.tx.ambulancia.findUnique({
+      where: { id },
+      select: seleccionAmbulancia,
+    });
+    return registro ? ambulanciaDesdeRegistro(registro) : null;
+  }
+
+  async buscarTurnoActivoDeAmbulancia(
+    ambulanciaId: string,
+  ): Promise<Turno | null> {
+    const registro = await this.tx.turno.findFirst({
+      where: { ambulanciaId, estado: 'activo' },
+      select: seleccionTurno,
+    });
+    return registro ? turnoDesdeRegistro(registro) : null;
+  }
+
+  async buscarTurnoActivoDeUsuario(usuarioId: string): Promise<Turno | null> {
+    const registro = await this.tx.turno.findFirst({
+      where: { estado: 'activo', integrantes: { some: { usuarioId } } },
+      select: seleccionTurno,
+    });
+    return registro ? turnoDesdeRegistro(registro) : null;
+  }
+
+  async tieneServicios(turnoId: string): Promise<boolean> {
+    return (await this.tx.asignacionServicio.count({ where: { turnoId } })) > 0;
+  }
+
+  async crearTurno(turno: Turno): Promise<Turno> {
+    const registro = await this.tx.turno.create({
+      data: {
+        id: turno.id,
+        ambulanciaId: turno.ambulanciaId,
+        inicio: turno.inicio,
+        estado: turno.estado,
+        integrantes: {
+          create: turno.integrantes.map((i) => ({
+            usuarioId: i.usuarioId,
+            funcion: i.funcion,
+          })),
         },
-        select: seleccionTurno,
-      });
+      },
+      select: seleccionTurno,
     });
-    return this.aEntidad(registro);
+    return turnoDesdeRegistro(registro);
   }
 
-  async reemplazarIntegrantes(turno: Turno): Promise<Turno> {
-    const registro = await this.prisma.$transaction(async (tx) => {
-      await tx.turnoIntegrante.deleteMany({ where: { turnoId: turno.id } });
-      await tx.turnoIntegrante.createMany({
-        data: turno.integrantes.map((i) => ({
-          turnoId: turno.id,
-          usuarioId: i.usuarioId,
-          funcion: i.funcion,
-        })),
-      });
-      return tx.turno.findUniqueOrThrow({
-        where: { id: turno.id },
-        select: seleccionTurno,
-      });
+  async agregarIntegrante(
+    turnoId: string,
+    { usuarioId, funcion }: NuevoIntegrante,
+  ): Promise<Turno> {
+    await this.tx.turnoIntegrante.create({
+      data: { turnoId, usuarioId, funcion },
     });
-    return this.aEntidad(registro);
+    const registro = await this.tx.turno.findUniqueOrThrow({
+      where: { id: turnoId },
+      select: seleccionTurno,
+    });
+    return turnoDesdeRegistro(registro);
   }
 
-  async finalizar(turno: Turno): Promise<Turno> {
-    const { count } = await this.prisma.turno.updateMany({
+  async finalizarTurno(turno: Turno): Promise<Turno> {
+    const { count } = await this.tx.turno.updateMany({
       where: { id: turno.id, estado: 'activo' },
       data: { estado: turno.estado, fin: turno.fin },
     });
     if (count === 0) {
       throw new ConflictoNegocioError('El turno ya fue finalizado');
     }
-    const registro = await this.prisma.turno.findUniqueOrThrow({
+    const registro = await this.tx.turno.findUniqueOrThrow({
       where: { id: turno.id },
       select: seleccionTurno,
     });
-    return this.aEntidad(registro);
+    return turnoDesdeRegistro(registro);
   }
 
-  private aEntidad(registro: RegistroTurno): Turno {
-    return Turno.reconstruir({
-      id: registro.id,
-      ambulanciaId: registro.ambulanciaId,
-      ambulanciaCodigo: registro.ambulancia.codigo,
-      inicio: registro.inicio,
-      fin: registro.fin,
-      estado: this.validar(ESTADOS_TURNO, registro.estado),
-      integrantes: registro.integrantes.map((i) => ({
-        usuarioId: i.usuarioId,
-        funcion: this.validar(FUNCIONES_TRIPULANTE, i.funcion),
-        nombreCompleto: `${i.usuario.nombres} ${i.usuario.apellidos}`,
-      })),
+  async cambiarEstadoAmbulancia(
+    ambulancia: Ambulancia,
+    cambio: CambioEstadoAmbulancia,
+  ): Promise<void> {
+    await this.tx.ambulancia.update({
+      where: { id: ambulancia.id },
+      data: { estadoOperativo: cambio.estadoNuevo },
+    });
+    await this.tx.estadoAmbulanciaHistorial.create({
+      data: {
+        id: cambio.id,
+        ambulanciaId: cambio.ambulanciaId,
+        estadoAnterior: cambio.estadoAnterior,
+        estadoNuevo: cambio.estadoNuevo,
+        motivo: cambio.motivo,
+        usuarioId: cambio.usuarioId,
+        cambiadoEn: cambio.cambiadoEn,
+      },
     });
   }
+}
 
-  private validar<T extends string>(validos: readonly T[], valor: string): T {
-    const encontrado = validos.find((valido) => valido === valor);
-    if (encontrado === undefined) {
-      throw new Error(
-        `Valor de turno desconocido en la base de datos: ${valor}`,
-      );
-    }
-    return encontrado;
+function turnoDesdeRegistro(registro: RegistroTurno): Turno {
+  return Turno.reconstruir({
+    id: registro.id,
+    ambulanciaId: registro.ambulanciaId,
+    ambulanciaCodigo: registro.ambulancia.codigo,
+    inicio: registro.inicio,
+    fin: registro.fin,
+    estado: validarValor(ESTADOS_TURNO, registro.estado),
+    integrantes: registro.integrantes.map((i) => ({
+      usuarioId: i.usuarioId,
+      funcion: validarValor(FUNCIONES_TRIPULANTE, i.funcion),
+      nombreCompleto: `${i.usuario.nombres} ${i.usuario.apellidos}`,
+    })),
+  });
+}
+
+function validarValor<T extends string>(
+  validos: readonly T[],
+  valor: string,
+): T {
+  const encontrado = validos.find((valido) => valido === valor);
+  if (encontrado === undefined) {
+    throw new Error(`Valor de turno desconocido en la base de datos: ${valor}`);
   }
+  return encontrado;
 }

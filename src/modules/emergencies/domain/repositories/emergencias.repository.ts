@@ -19,6 +19,8 @@ export interface FiltrosEmergencias {
   tipoIncidente?: TipoIncidente;
   desde?: Date;
   hasta?: Date;
+  /** Solo las que reportó ese ciudadano. */
+  informanteUsuarioId?: string;
 }
 
 /** Otra solicitud tomó el mismo consecutivo; el caso de uso reintenta. */

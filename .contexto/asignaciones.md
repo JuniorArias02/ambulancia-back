@@ -45,7 +45,8 @@ Despacha ambulancias a emergencias (tabla `asignaciones_servicio`) y lleva el av
 
 ## Reglas
 
-1. La ambulancia debe estar `disponible` y **con turno activo** (`422`).
+0. **Destino del traslado:** lo elige solo el conductor; ver [ruta-institucion.md](ruta-institucion.md).
+1. La ambulancia debe estar `disponible`, **con turno activo y tripulación completa** (`422`). Si el turno deja de estar activo durante el despacho, `409`.
 2. **Una ambulancia no queda asignada a dos emergencias**: en la transacción, `updateMany` de la ambulancia con `where estadoOperativo = 'disponible'`; si otro despacho ganó, `count = 0` → `409`.
 3. Una emergencia **puede tener varias ambulancias**.
 4. **Permiso de avance**: administrador y despachador pueden avanzar cualquier asignación; conductor y paramédico, solo la de **su** turno (`turno.incluyeA(usuarioId)`) → si no, `403`.

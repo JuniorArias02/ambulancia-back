@@ -55,6 +55,14 @@ export class PrismaUsuariosRepositorio extends UsuariosRepositorio {
     return registro ? this.aEntidad(registro) : null;
   }
 
+  async buscarPorDocumento(numeroDocumento: string): Promise<Usuario | null> {
+    const registro = await this.prisma.usuario.findUnique({
+      where: { numeroDocumento },
+      select: seleccionUsuario,
+    });
+    return registro ? this.aEntidad(registro) : null;
+  }
+
   async existeCorreo(correo: string): Promise<boolean> {
     const total = await this.prisma.usuario.count({ where: { correo } });
     return total > 0;

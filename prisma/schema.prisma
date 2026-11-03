@@ -24,7 +24,7 @@ datasource db {
 
 model Rol {
   id          String  @id @default(uuid()) @db.Char(36)
-  /// admin, despachador, paramedico, medico, conductor
+  /// administrador, despachador, paramedico, conductor, ciudadano
   nombre      String  @unique @db.VarChar(60)
   descripcion String? @db.VarChar(255)
 
@@ -44,6 +44,8 @@ model Usuario {
   telefono            String?   @db.VarChar(30)
   /// ReTHUS / tarjeta profesional, para quien firma la HCP
   registroProfesional String?   @map("registro_profesional") @db.VarChar(60)
+  /// Solo ciudadanos: se pide en el registro
+  fechaNacimiento     DateTime? @map("fecha_nacimiento") @db.Date
   contrasenaHash      String    @map("contrasena_hash") @db.VarChar(255)
   estado              String    @default("activo") @db.VarChar(30)
   ultimoAcceso        DateTime? @map("ultimo_acceso") @db.DateTime(3)
@@ -55,9 +57,14 @@ model Usuario {
   eventosAuditoria           AuditoriaEvento[]
   turnos                     TurnoIntegrante[]
   estadosAmbulanciaCambiados EstadoAmbulanciaHistorial[]
-  emergenciasRecibidas       Emergencia[]
-  asignacionesRealizadas     AsignacionServicio[]
+  emergenciasRecibidas       Emergencia[]                @relation("EmergenciaRecibidaPor")
+  asignacionesRealizadas     AsignacionServicio[]        @relation("AsignacionAsignadaPor")
+  destinosActualizados       AsignacionServicio[]        @relation("AsignacionDestinoActualizadoPor")
   eventosAsignacion          EventoAsignacion[]
+  verificacionIdentidad      VerificacionIdentidad?      @relation("VerificacionDelCiudadano")
+  verificacionesRevisadas    VerificacionIdentidad[]     @relation("VerificacionRevisadaPor")
+  historialVerificaciones    HistorialVerificacion[]
+  emergenciasReportadas      Emergencia[]                @relation("EmergenciaInformante")
   historiasCreadas           HistoriaClinica[]           @relation("HistoriaCreadaPor")
   historiasCerradas          HistoriaClinica[]           @relation("HistoriaCerradaPor")
   signosVitales              SignoVital[]
@@ -205,41 +212,53 @@ model Emergencia {
   /// si es una llamada duplicada, apunta a la emergencia original
   emergenciaPrincipalId String?   @map("emergencia_principal_id") @db.Char(36)
   recibidaPorId         String?   @map("recibida_por_id") @db.Char(36)
+  /// Ciudadano que la reportó desde la app (fuente = app)
+  informanteUsuarioId   String?   @map("informante_usuario_id") @db.Char(36)
+  /// gps o manual; solo en los reportes de ciudadanos
+  origenUbicacion       String?   @map("origen_ubicacion") @db.VarChar(20)
   recibidaEn            DateTime  @default(now()) @map("recibida_en") @db.DateTime(3)
   cerradaEn             DateTime? @map("cerrada_en") @db.DateTime(3)
 
   emergenciaPrincipal Emergencia?  @relation("EmergenciaDuplicada", fields: [emergenciaPrincipalId], references: [id])
   duplicadas          Emergencia[] @relation("EmergenciaDuplicada")
-  recibidaPor         Usuario?     @relation(fields: [recibidaPorId], references: [id])
+  recibidaPor         Usuario?     @relation("EmergenciaRecibidaPor", fields: [recibidaPorId], references: [id])
+  informanteUsuario   Usuario?     @relation("EmergenciaInformante", fields: [informanteUsuarioId], references: [id])
 
   asignaciones      AsignacionServicio[]
   historiasClinicas HistoriaClinica[]
 
+  @@index([informanteUsuarioId, recibidaEn])
   @@map("emergencias")
 }
 
 model AsignacionServicio {
-  id                String    @id @default(uuid()) @db.Char(36)
-  emergenciaId      String    @map("emergencia_id") @db.Char(36)
-  ambulanciaId      String    @map("ambulancia_id") @db.Char(36)
-  turnoId           String?   @map("turno_id") @db.Char(36)
-  asignadaPorId     String?   @map("asignada_por_id") @db.Char(36)
+  id                      String    @id @default(uuid()) @db.Char(36)
+  emergenciaId            String    @map("emergencia_id") @db.Char(36)
+  ambulanciaId            String    @map("ambulancia_id") @db.Char(36)
+  turnoId                 String?   @map("turno_id") @db.Char(36)
+  asignadaPorId           String?   @map("asignada_por_id") @db.Char(36)
   /// asignada, en_camino, en_escena, atendiendo, trasladando, finalizada, cancelada
-  estado            String    @default("asignada") @db.VarChar(40)
-  motivoCancelacion String?   @map("motivo_cancelacion") @db.VarChar(255)
-  asignadaEn        DateTime  @default(now()) @map("asignada_en") @db.DateTime(3)
-  salidaEn          DateTime? @map("salida_en") @db.DateTime(3)
-  llegadaEscenaEn   DateTime? @map("llegada_escena_en") @db.DateTime(3)
+  estado                  String    @default("asignada") @db.VarChar(40)
+  motivoCancelacion       String?   @map("motivo_cancelacion") @db.VarChar(255)
+  asignadaEn              DateTime  @default(now()) @map("asignada_en") @db.DateTime(3)
+  salidaEn                DateTime? @map("salida_en") @db.DateTime(3)
+  llegadaEscenaEn         DateTime? @map("llegada_escena_en") @db.DateTime(3)
   /// Inicio de la atención del paciente en la escena
-  atencionInicioEn  DateTime? @map("atencion_inicio_en") @db.DateTime(3)
-  salidaEscenaEn    DateTime? @map("salida_escena_en") @db.DateTime(3)
-  llegadaDestinoEn  DateTime? @map("llegada_destino_en") @db.DateTime(3)
-  finalizadaEn      DateTime? @map("finalizada_en") @db.DateTime(3)
+  atencionInicioEn        DateTime? @map("atencion_inicio_en") @db.DateTime(3)
+  salidaEscenaEn          DateTime? @map("salida_escena_en") @db.DateTime(3)
+  llegadaDestinoEn        DateTime? @map("llegada_destino_en") @db.DateTime(3)
+  finalizadaEn            DateTime? @map("finalizada_en") @db.DateTime(3)
+  institucionDestinoId    String?   @map("institucion_destino_id") @db.Char(36)
+  destinoActualizadoPorId String?   @map("destino_actualizado_por_id") @db.Char(36)
+  destinoActualizadoEn    DateTime? @map("destino_actualizado_en") @db.DateTime(3)
 
-  emergencia  Emergencia @relation(fields: [emergenciaId], references: [id])
-  ambulancia  Ambulancia @relation(fields: [ambulanciaId], references: [id])
-  turno       Turno?     @relation(fields: [turnoId], references: [id])
-  asignadaPor Usuario?   @relation(fields: [asignadaPorId], references: [id])
+  emergencia            Emergencia        @relation(fields: [emergenciaId], references: [id])
+  ambulancia            Ambulancia        @relation(fields: [ambulanciaId], references: [id])
+  turno                 Turno?            @relation(fields: [turnoId], references: [id])
+  asignadaPor           Usuario?          @relation("AsignacionAsignadaPor", fields: [asignadaPorId], references: [id])
+  /// A dónde va la ambulancia. La entrega real de cada paciente queda en su historia clínica
+  institucionDestino    InstitucionSalud? @relation(fields: [institucionDestinoId], references: [id])
+  destinoActualizadoPor Usuario?          @relation("AsignacionDestinoActualizadoPor", fields: [destinoActualizadoPorId], references: [id])
 
   ubicaciones       UbicacionAmbulancia[]
   historiasClinicas HistoriaClinica[]
@@ -254,22 +273,22 @@ model AsignacionServicio {
 /// Ruta por calles calculada para un servicio. Se guarda cada cálculo
 /// (despacho, desvío…): la vigente es la más reciente.
 model RutaAsignacion {
-  id                String   @id @default(uuid()) @db.Char(36)
-  asignacionId      String   @map("asignacion_id") @db.Char(36)
-  /// hacia_emergencia (luego: hacia_destino)
-  tramo             String   @db.VarChar(30)
-  /// despacho, desvio, sin_ruta
-  motivo            String   @db.VarChar(30)
-  origenLatitud     Decimal  @map("origen_latitud") @db.Decimal(10, 7)
-  origenLongitud    Decimal  @map("origen_longitud") @db.Decimal(10, 7)
-  destinoLatitud    Decimal  @map("destino_latitud") @db.Decimal(10, 7)
-  destinoLongitud   Decimal  @map("destino_longitud") @db.Decimal(10, 7)
+  id               String   @id @default(uuid()) @db.Char(36)
+  asignacionId     String   @map("asignacion_id") @db.Char(36)
+  /// hacia_emergencia, hacia_destino
+  tramo            String   @db.VarChar(30)
+  /// despacho, desvio, sin_ruta, inicio_traslado, cambio_destino
+  motivo           String   @db.VarChar(30)
+  origenLatitud    Decimal  @map("origen_latitud") @db.Decimal(10, 7)
+  origenLongitud   Decimal  @map("origen_longitud") @db.Decimal(10, 7)
+  destinoLatitud   Decimal  @map("destino_latitud") @db.Decimal(10, 7)
+  destinoLongitud  Decimal  @map("destino_longitud") @db.Decimal(10, 7)
   /// Puntos de la ruta en orden: [[longitud, latitud], …] (orden GeoJSON)
-  geometria         Json
-  distanciaMetros   Int      @map("distancia_metros")
-  duracionSegundos  Int      @map("duracion_segundos")
-  proveedor         String   @db.VarChar(40)
-  calculadaEn       DateTime @default(now()) @map("calculada_en") @db.DateTime(3)
+  geometria        Json
+  distanciaMetros  Int      @map("distancia_metros")
+  duracionSegundos Int      @map("duracion_segundos")
+  proveedor        String   @db.VarChar(40)
+  calculadaEn      DateTime @default(now()) @map("calculada_en") @db.DateTime(3)
 
   asignacion AsignacionServicio @relation(fields: [asignacionId], references: [id])
 
@@ -398,6 +417,7 @@ model InstitucionSalud {
   activa             Boolean  @default(true)
 
   historiasClinicas HistoriaClinica[]
+  asignaciones      AsignacionServicio[]
 
   @@map("instituciones_salud")
 }
@@ -631,4 +651,71 @@ model SegmentoAudio {
 
   @@unique([grabacionId, orden])
   @@map("segmentos_audio")
+}
+
+// ---------------------------------------------------------------------------
+// Ciudadanos: verificación documental de identidad
+// ---------------------------------------------------------------------------
+
+/// Una por ciudadano. Solo `verificado` permite reportar emergencias.
+model VerificacionIdentidad {
+  id            String    @id @default(uuid()) @db.Char(36)
+  usuarioId     String    @unique @map("usuario_id") @db.Char(36)
+  /// pendiente, en_revision, verificado, rechazado, requiere_correccion
+  estado        String    @default("pendiente") @db.VarChar(30)
+  /// Lo que ve el ciudadano cuando se rechaza o se pide corrección
+  motivo        String?   @db.VarChar(500)
+  enviadaEn     DateTime  @map("enviada_en") @db.DateTime(3)
+  revisadaPorId String?   @map("revisada_por_id") @db.Char(36)
+  revisadaEn    DateTime? @map("revisada_en") @db.DateTime(3)
+
+  usuario     Usuario  @relation("VerificacionDelCiudadano", fields: [usuarioId], references: [id])
+  revisadaPor Usuario? @relation("VerificacionRevisadaPor", fields: [revisadaPorId], references: [id])
+
+  documentos DocumentoIdentidad[]
+  historial  HistorialVerificacion[]
+
+  @@index([estado, enviadaEn])
+  @@map("verificaciones_identidad")
+}
+
+/// Fotos del documento en almacenamiento privado; aquí solo la referencia.
+model DocumentoIdentidad {
+  id                  String    @id @default(uuid()) @db.Char(36)
+  verificacionId      String    @map("verificacion_id") @db.Char(36)
+  /// frontal, posterior
+  lado                String    @db.VarChar(20)
+  /// Nombre interno del archivo; nunca el nombre original
+  claveAlmacenamiento String    @unique @map("clave_almacenamiento") @db.VarChar(100)
+  tipoMime            String    @map("tipo_mime") @db.VarChar(50)
+  tamanoBytes         Int       @map("tamano_bytes")
+  huellaSha256        String    @map("huella_sha256") @db.Char(64)
+  /// false cuando el ciudadano lo reemplazó en una corrección
+  vigente             Boolean   @default(true)
+  cargadoEn           DateTime  @map("cargado_en") @db.DateTime(3)
+  reemplazadoEn       DateTime? @map("reemplazado_en") @db.DateTime(3)
+
+  verificacion VerificacionIdentidad @relation(fields: [verificacionId], references: [id])
+
+  @@index([verificacionId, vigente])
+  @@map("documentos_identidad")
+}
+
+/// Cada cambio de estado: decisiones del administrador y reenvíos del ciudadano.
+model HistorialVerificacion {
+  id             String   @id @default(uuid()) @db.Char(36)
+  verificacionId String   @map("verificacion_id") @db.Char(36)
+  estadoAnterior String?  @map("estado_anterior") @db.VarChar(30)
+  estadoNuevo    String   @map("estado_nuevo") @db.VarChar(30)
+  motivo         String?  @db.VarChar(500)
+  /// Notas internas del administrador; el ciudadano nunca las ve
+  observaciones  String?  @db.Text
+  responsableId  String   @map("responsable_id") @db.Char(36)
+  ocurridoEn     DateTime @map("ocurrido_en") @db.DateTime(3)
+
+  verificacion VerificacionIdentidad @relation(fields: [verificacionId], references: [id])
+  responsable  Usuario               @relation(fields: [responsableId], references: [id])
+
+  @@index([verificacionId, ocurridoEn])
+  @@map("historial_verificaciones")
 }

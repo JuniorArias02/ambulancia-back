@@ -57,7 +57,7 @@ export class AmbulanciasController {
   ) {}
 
   @Post()
-  @RequiereRoles(Roles.ADMINISTRADOR)
+  @RequiereRoles(Roles.ADMINISTRADOR, Roles.DESPACHADOR)
   @ApiOperation({
     summary: 'Registrar una ambulancia (nace fuera de servicio)',
   })
@@ -102,7 +102,7 @@ export class AmbulanciasController {
   }
 
   @Patch(':id')
-  @RequiereRoles(Roles.ADMINISTRADOR)
+  @RequiereRoles(Roles.ADMINISTRADOR, Roles.DESPACHADOR)
   @ApiOperation({ summary: 'Editar código, placa o tipo de una ambulancia' })
   @ApiOkResponse({ type: AmbulanciaRespuestaDto })
   @ApiNotFoundResponse()

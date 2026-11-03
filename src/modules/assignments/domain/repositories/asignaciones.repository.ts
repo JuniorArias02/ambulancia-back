@@ -74,6 +74,11 @@ export abstract class AsignacionesRepositorio {
     evento: EventoAsignacion,
     efectos: { ambulancia?: CambioAmbulancia; emergencia?: CambioEmergencia },
   ): Promise<Asignacion>;
+  /**
+   * Guarda el destino con quién y cuándo lo definió. Falla con 409 si el servicio
+   * ya salió de los estados que lo permiten.
+   */
+  abstract registrarDestino(asignacion: Asignacion): Promise<Asignacion>;
   /** Línea de tiempo del servicio, del primer evento al último. */
   abstract listarEventos(asignacionId: string): Promise<EventoAsignacion[]>;
 }

@@ -16,6 +16,7 @@ Fijos, definidos en `src/common/constants/roles.ts` y sincronizados por el seed 
 | `despachador` | Recibe las alertas de emergencia y despacha las ambulancias |
 | `paramedico` | Atiende al paciente y diligencia la historia clínica |
 | `conductor` | Conduce la ambulancia asignada |
+| `ciudadano` | Reporta emergencias desde la app una vez verificada su identidad (desde 2026-11-02, ver [ciudadanos.md](ciudadanos.md)) |
 
 **Cada usuario tiene un solo rol.** El frontend envía el `nombre` del rol, no su `id`.
 
@@ -49,6 +50,7 @@ Campos: `id`, `nombres`, `apellidos`, `correo`, `telefono | null`, `contrasenaHa
 6. Inactivar o bloquear **desconecta al usuario de inmediato**: la validación de sesión revisa el estado en cada solicitud (ver [autenticacion.md](autenticacion.md)).
 7. El correo, el rol, el estado y la contraseña **no** se editan en `PATCH /usuarios/{id}`; cada uno tiene su propio endpoint.
 8. Crear, actualizar, asignar rol y cambiar estado quedan en **auditoría** (el cambio de estado guarda el `motivo`).
+9. **El rol `ciudadano` no se crea ni se asigna desde aquí:** los DTO aceptan solo `ROLES_INTERNOS` (`400`). `Usuario.asignarRol` impide convertir a un ciudadano en personal o al revés (`422`). Los ciudadanos solo nacen del registro público (`/ciudadanos/registro`). `GET /usuarios` sí los lista, y bloquearlos con `/estado` funciona igual.
 
 ## Validaciones de entrada (DTOs)
 

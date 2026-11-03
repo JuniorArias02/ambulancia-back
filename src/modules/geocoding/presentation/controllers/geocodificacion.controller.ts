@@ -68,7 +68,8 @@ export class GeocodificacionController {
 
   @Post('inversa')
   @HttpCode(HttpStatus.OK)
-  @RequiereRoles(Roles.ADMINISTRADOR, Roles.DESPACHADOR)
+  // El ciudadano la usa para ver la dirección del punto que va a reportar.
+  @RequiereRoles(Roles.ADMINISTRADOR, Roles.DESPACHADOR, Roles.CIUDADANO)
   // Más holgado que la búsqueda: el despachador puede tocar varias veces el mapa.
   @Throttle({ default: { limit: 60, ttl: 60_000 } })
   @ApiOperation({

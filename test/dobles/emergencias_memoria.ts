@@ -10,6 +10,7 @@ import {
 } from '../../src/modules/emergencies/domain/entities/emergencia.entity.js';
 import {
   EmergenciasRepositorio,
+  type FiltrosEmergencias,
   NumeroEmergenciaEnUsoError,
 } from '../../src/modules/emergencies/domain/repositories/emergencias.repository.js';
 
@@ -30,11 +31,15 @@ export class EmergenciasMemoria extends EmergenciasRepositorio {
     return Promise.resolve(Math.max(0, ...consecutivos));
   }
 
+  /** Solo aplica el filtro por informante, que es el que protege los reportes ajenos. */
   listar(
-    _filtros: unknown,
+    { informanteUsuarioId }: FiltrosEmergencias,
     { pagina, limite }: Paginacion,
   ): Promise<ResultadoPaginado<Emergencia>> {
-    const datos = [...this.emergencias.values()];
+    const datos = [...this.emergencias.values()].filter(
+      (e) =>
+        !informanteUsuarioId || e.informanteUsuarioId === informanteUsuarioId,
+    );
     return Promise.resolve({ datos, total: datos.length, pagina, limite });
   }
 

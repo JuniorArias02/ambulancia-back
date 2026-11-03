@@ -5,6 +5,8 @@
 
 ---
 
+> **Cambio (2026-11-01):** el despachador ya no asigna la ambulancia: `turno: null` significa que el usuario debe seleccionarla. Ver [`instrucciones-agente-flutter.md`](instrucciones-agente-flutter.md).
+
 ## 1. Conexión con el backend
 
 | Dónde corre la app | Base URL |

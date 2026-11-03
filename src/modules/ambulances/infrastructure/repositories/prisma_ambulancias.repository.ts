@@ -16,7 +16,7 @@ import {
   type FiltrosAmbulancias,
 } from '../../domain/repositories/ambulancias.repository.js';
 
-const seleccionAmbulancia = {
+export const seleccionAmbulancia = {
   id: true,
   codigo: true,
   placa: true,
@@ -28,7 +28,7 @@ const seleccionAmbulancia = {
   tipoAmbulancia: { select: { id: true, nombre: true, descripcion: true } },
 } satisfies Prisma.AmbulanciaSelect;
 
-type RegistroAmbulancia = Prisma.AmbulanciaGetPayload<{
+export type RegistroAmbulancia = Prisma.AmbulanciaGetPayload<{
   select: typeof seleccionAmbulancia;
 }>;
 
@@ -46,6 +46,41 @@ type RegistroCambioEstado = Prisma.EstadoAmbulanciaHistorialGetPayload<{
   select: typeof seleccionCambioEstado;
 }>;
 
+export function ambulanciaDesdeRegistro(
+  registro: RegistroAmbulancia,
+): Ambulancia {
+  const { ultimaLatitud, ultimaLongitud, ultimaUbicacionEn } = registro;
+
+  return Ambulancia.reconstruir({
+    id: registro.id,
+    codigo: registro.codigo,
+    placa: registro.placa,
+    tipo: registro.tipoAmbulancia,
+    estadoOperativo: validarEstado(registro.estadoOperativo),
+    // MySQL devuelve DECIMAL como objeto Decimal; el dominio usa number.
+    ultimaUbicacion:
+      ultimaLatitud !== null &&
+      ultimaLongitud !== null &&
+      ultimaUbicacionEn !== null
+        ? {
+            latitud: ultimaLatitud.toNumber(),
+            longitud: ultimaLongitud.toNumber(),
+            registradaEn: ultimaUbicacionEn,
+          }
+        : null,
+    creadaEn: registro.creadaEn,
+  });
+}
+
+function validarEstado(estado: string): EstadoOperativo {
+  if (!Ambulancia.esEstadoValido(estado)) {
+    throw new Error(
+      `Estado de ambulancia desconocido en la base de datos: ${estado}`,
+    );
+  }
+  return estado;
+}
+
 @Injectable()
 export class PrismaAmbulanciasRepositorio extends AmbulanciasRepositorio {
   constructor(private readonly prisma: PrismaService) {
@@ -57,7 +92,7 @@ export class PrismaAmbulanciasRepositorio extends AmbulanciasRepositorio {
       where: { id },
       select: seleccionAmbulancia,
     });
-    return registro ? this.aEntidad(registro) : null;
+    return registro ? ambulanciaDesdeRegistro(registro) : null;
   }
 
   async existeCodigo(codigo: string, excluirId?: string): Promise<boolean> {
@@ -101,11 +136,19 @@ export class PrismaAmbulanciasRepositorio extends AmbulanciasRepositorio {
     ]);
 
     return {
-      datos: registros.map((registro) => this.aEntidad(registro)),
+      datos: registros.map((registro) => ambulanciaDesdeRegistro(registro)),
       total,
       pagina,
       limite,
     };
+  }
+
+  async listarTodas(): Promise<Ambulancia[]> {
+    const registros = await this.prisma.ambulancia.findMany({
+      select: seleccionAmbulancia,
+      orderBy: { codigo: 'asc' },
+    });
+    return registros.map((registro) => ambulanciaDesdeRegistro(registro));
   }
 
   async crear(ambulancia: Ambulancia): Promise<Ambulancia> {
@@ -121,7 +164,7 @@ export class PrismaAmbulanciasRepositorio extends AmbulanciasRepositorio {
         },
         select: seleccionAmbulancia,
       });
-      return this.aEntidad(registro);
+      return ambulanciaDesdeRegistro(registro);
     } catch (error) {
       throw this.traducirError(error);
     }
@@ -138,7 +181,7 @@ export class PrismaAmbulanciasRepositorio extends AmbulanciasRepositorio {
         },
         select: seleccionAmbulancia,
       });
-      return this.aEntidad(registro);
+      return ambulanciaDesdeRegistro(registro);
     } catch (error) {
       throw this.traducirError(error);
     }
@@ -181,7 +224,7 @@ export class PrismaAmbulanciasRepositorio extends AmbulanciasRepositorio {
         select: seleccionAmbulancia,
       });
     });
-    return this.aEntidad(registro);
+    return ambulanciaDesdeRegistro(registro);
   }
 
   async listarHistorialEstados(
@@ -208,30 +251,6 @@ export class PrismaAmbulanciasRepositorio extends AmbulanciasRepositorio {
     };
   }
 
-  private aEntidad(registro: RegistroAmbulancia): Ambulancia {
-    const { ultimaLatitud, ultimaLongitud, ultimaUbicacionEn } = registro;
-
-    return Ambulancia.reconstruir({
-      id: registro.id,
-      codigo: registro.codigo,
-      placa: registro.placa,
-      tipo: registro.tipoAmbulancia,
-      estadoOperativo: this.validarEstado(registro.estadoOperativo),
-      // MySQL devuelve DECIMAL como objeto Decimal; el dominio usa number.
-      ultimaUbicacion:
-        ultimaLatitud !== null &&
-        ultimaLongitud !== null &&
-        ultimaUbicacionEn !== null
-          ? {
-              latitud: ultimaLatitud.toNumber(),
-              longitud: ultimaLongitud.toNumber(),
-              registradaEn: ultimaUbicacionEn,
-            }
-          : null,
-      creadaEn: registro.creadaEn,
-    });
-  }
-
   private aCambioEstado(
     registro: RegistroCambioEstado,
   ): CambioEstadoAmbulancia {
@@ -240,18 +259,9 @@ export class PrismaAmbulanciasRepositorio extends AmbulanciasRepositorio {
       estadoAnterior:
         registro.estadoAnterior === null
           ? null
-          : this.validarEstado(registro.estadoAnterior),
-      estadoNuevo: this.validarEstado(registro.estadoNuevo),
+          : validarEstado(registro.estadoAnterior),
+      estadoNuevo: validarEstado(registro.estadoNuevo),
     };
-  }
-
-  private validarEstado(estado: string): EstadoOperativo {
-    if (!Ambulancia.esEstadoValido(estado)) {
-      throw new Error(
-        `Estado de ambulancia desconocido en la base de datos: ${estado}`,
-      );
-    }
-    return estado;
   }
 
   private traducirError(error: unknown): unknown {

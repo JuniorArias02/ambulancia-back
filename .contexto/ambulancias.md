@@ -11,10 +11,10 @@ Registro de la flota, tipos de ambulancia (TAB/TAM) y estado operativo de cada a
 | Método | Ruta | Roles | Caso de uso |
 | --- | --- | --- | --- |
 | GET | `/tipos-ambulancia` | administrador, despachador | `ConsultarTiposAmbulancia` |
-| POST | `/ambulancias` | administrador | `CrearAmbulancia` |
+| POST | `/ambulancias` | administrador, despachador | `CrearAmbulancia` |
 | GET | `/ambulancias` | administrador, despachador | `ConsultarAmbulancias` (filtros `busqueda`, `estadoOperativo`, `tipoAmbulanciaId` + paginación; orden por código) |
 | GET | `/ambulancias/{id}` | administrador, despachador | `ObtenerAmbulancia` |
-| PATCH | `/ambulancias/{id}` | administrador | `ActualizarAmbulancia` (código, placa o tipo) |
+| PATCH | `/ambulancias/{id}` | administrador, despachador | `ActualizarAmbulancia` (código, placa o tipo) |
 | PATCH | `/ambulancias/{id}/estado` | administrador, despachador | `CambiarEstadoAmbulancia` (`estado` + `motivo` 5–255) |
 | GET | `/ambulancias/{id}/historial-estados` | administrador, despachador | `ConsultarHistorialEstadosAmbulancia` (del más reciente al más antiguo) |
 
@@ -103,9 +103,9 @@ test/dobles/ambulancias_memoria.ts   (TiposAmbulanciaMemoria, AmbulanciasMemoria
 
 ## Cambios posteriores (2026-10-24, con turnos y asignaciones)
 
-- **Pasar a `disponible` exige turno activo** (`CambiarEstadoAmbulancia` depende de `TurnosRepositorio`). Ver [turnos.md](turnos.md).
+- **Pasar a `disponible` exige tripulación completa** (`CambiarEstadoAmbulancia` depende de `TurnosRepositorio`). También pasa sola al completarse o quedar incompleta: ver [seleccion-ambulancia.md](seleccion-ambulancia.md).
 - La entidad tiene `iniciarServicio()` y `finalizarServicio()`, que usan las asignaciones para manejar `en_servicio`. Ver [asignaciones.md](asignaciones.md).
-- El módulo ahora también contiene **turnos** e importa `UsersModule`.
+- El módulo ahora también contiene **turnos** (desde el 2026-11-01 ya no importa `UsersModule`).
 - `ultimaUbicacion` se actualiza con cada reporte GPS. Ver [ubicaciones.md](ubicaciones.md).
 
 ## Pendiente (original)

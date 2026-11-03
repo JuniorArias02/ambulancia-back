@@ -31,7 +31,7 @@ export class RutasController {
   @RequiereRoles(Roles.ADMINISTRADOR, Roles.DESPACHADOR)
   @ApiOperation({
     summary:
-      'Ruta vigente de cada ambulancia que va hacia una emergencia (mapa del despacho)',
+      'Ruta vigente de cada ambulancia que va hacia una emergencia o un hospital (mapa del despacho)',
   })
   @ApiOkResponse({ type: [RutaRespuestaDto] })
   async activas(): Promise<RutaRespuestaDto[]> {
@@ -52,7 +52,7 @@ export class RutasController {
   @ApiOkResponse({ type: RutaRespuestaDto })
   @ApiNotFoundResponse({
     description:
-      'La asignación no existe o aún no tiene ruta (sin GPS reciente o sin coordenadas)',
+      'La asignación no existe o no tiene ruta vigente: en la escena, sin hospital elegido, sin GPS reciente o sin coordenadas',
   })
   async deAsignacion(
     @Param('id', ParseUUIDPipe) id: string,

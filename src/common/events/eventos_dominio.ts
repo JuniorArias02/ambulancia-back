@@ -11,7 +11,7 @@ export type EventoDominio =
     }
   | { tipo: 'asignacion.creada'; asignacionId: string }
   | { tipo: 'asignacion.actualizada'; asignacionId: string }
-  /** Se calculó una ruta nueva para el servicio (despacho o desvío). */
+  /** Se calculó una ruta nueva para el servicio. */
   | { tipo: 'asignacion.ruta_actualizada'; asignacionId: string }
   | { tipo: 'ambulancia.actualizada'; ambulanciaId: string }
   | {

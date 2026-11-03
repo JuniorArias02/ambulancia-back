@@ -1,8 +1,10 @@
 import { Injectable, type OnModuleInit } from '@nestjs/common';
 import type { EventoDominio } from '../../../../common/events/eventos_dominio.js';
 import { PublicadorEventos } from '../../../../common/events/publicador_eventos.js';
+import { AsignacionesRepositorio } from '../../../assignments/domain/repositories/asignaciones.repository.js';
 import { ConfiguracionRutas } from '../../application/configuracion_rutas.js';
 import { CalcularRutaAsignacion } from '../../application/use-cases/calcular_ruta_asignacion.use-case.js';
+import { tramoDelEstado } from '../../domain/entities/ruta_asignacion.entity.js';
 import { RutasAsignacionRepositorio } from '../../domain/repositories/rutas_asignacion.repository.js';
 
 type EventoUbicacion = Extract<
@@ -11,8 +13,8 @@ type EventoUbicacion = Extract<
 >;
 
 /**
- * Decide cuándo vale la pena calcular una ruta: al despachar y cuando la
- * ambulancia se sale de la vigente. No recalcula en cada reporte GPS (cada
+ * Decide cuándo vale la pena calcular una ruta: al despachar, al iniciar el
+ * traslado o cambiar de hospital, y cuando la ambulancia se sale de la vigente. No recalcula en cada reporte GPS (cada
  * cálculo consume cuota del proveedor). Escucha el bus de eventos: asignaciones
  * y ubicaciones no saben que este módulo existe.
  */
@@ -29,6 +31,7 @@ export class RecalculadorRutas implements OnModuleInit {
     private readonly eventos: PublicadorEventos,
     private readonly calcularRuta: CalcularRutaAsignacion,
     private readonly rutasRepositorio: RutasAsignacionRepositorio,
+    private readonly asignacionesRepositorio: AsignacionesRepositorio,
     private readonly configuracion: ConfiguracionRutas,
   ) {}
 
@@ -42,17 +45,43 @@ export class RecalculadorRutas implements OnModuleInit {
         asignacionId: evento.asignacionId,
         motivo: 'despacho',
       });
+    } else if (evento.tipo === 'asignacion.actualizada') {
+      await this.alCambiarServicio(evento.asignacionId);
     } else if (evento.tipo === 'ambulancia.ubicacion_actualizada') {
       await this.alMoverse(evento);
     }
   }
 
+  /** Sin hospital elegido no hay nada que calcular; se hará cuando el conductor lo elija. */
+  private async alCambiarServicio(asignacionId: string): Promise<void> {
+    const asignacion =
+      await this.asignacionesRepositorio.buscarPorId(asignacionId);
+    if (asignacion?.estado !== 'trasladando' || !asignacion.destino) return;
+    // Un hospital nuevo no debe esperar por los intentos fallidos del anterior.
+    this.intentosSinRuta.delete(asignacionId);
+
+    const ruta = await this.rutasRepositorio.buscarVigente(asignacionId);
+    if (ruta?.esVigentePara(asignacion)) return;
+    await this.calcularRuta.ejecutar({
+      asignacionId,
+      motivo: asignacion.destinoCambioEnTraslado()
+        ? 'cambio_destino'
+        : 'inicio_traslado',
+    });
+  }
+
   private async alMoverse(evento: EventoUbicacion): Promise<void> {
     if (!evento.asignacionId) return;
-    const posicion = { latitud: evento.latitud, longitud: evento.longitud };
-    const vigente = await this.rutasRepositorio.buscarVigente(
+    const asignacion = await this.asignacionesRepositorio.buscarPorId(
       evento.asignacionId,
     );
+    const tramo = asignacion ? tramoDelEstado(asignacion.estado) : null;
+    if (!asignacion || !tramo) return;
+    // Sin hospital no hay intento posible: no consume el límite de reintentos.
+    if (tramo === 'hacia_destino' && !asignacion.destino) return;
+    const posicion = { latitud: evento.latitud, longitud: evento.longitud };
+    const ruta = await this.rutasRepositorio.buscarVigente(evento.asignacionId);
+    const vigente = ruta?.esVigentePara(asignacion) ? ruta : null;
 
     if (!vigente) {
       if (!this.puedeReintentar(evento.asignacionId)) return;

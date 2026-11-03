@@ -9,6 +9,8 @@
 
 ---
 
+> **Cambio (2026-11-01):** el paramédico selecciona su ambulancia desde la app. Ver [`instrucciones-agente-flutter.md`](instrucciones-agente-flutter.md).
+
 ## 1. Navegación según el rol
 
 Al iniciar sesión (o al abrir la app con una sesión guardada), decida el inicio con `usuario.rol` de la respuesta del login o de `GET /autenticacion/perfil`:

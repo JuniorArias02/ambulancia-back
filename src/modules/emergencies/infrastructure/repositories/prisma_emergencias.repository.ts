@@ -12,6 +12,7 @@ import {
   ESTADOS_EMERGENCIA,
   type EstadoEmergencia,
   FUENTES_EMERGENCIA,
+  ORIGENES_UBICACION,
   PRIORIDADES_EMERGENCIA,
   TIPOS_INCIDENTE,
 } from '../../domain/entities/emergencia.entity.js';
@@ -38,6 +39,8 @@ const seleccionEmergencia = {
   estado: true,
   emergenciaPrincipalId: true,
   recibidaPorId: true,
+  informanteUsuarioId: true,
+  origenUbicacion: true,
   recibidaEn: true,
   cerradaEn: true,
   recibidaPor: { select: { nombres: true, apellidos: true } },
@@ -83,6 +86,7 @@ export class PrismaEmergenciasRepositorio extends EmergenciasRepositorio {
         (filtros.soloActivas ? { in: [...ESTADOS_ACTIVOS] } : undefined),
       prioridad: filtros.prioridad,
       tipoIncidente: filtros.tipoIncidente,
+      informanteUsuarioId: filtros.informanteUsuarioId,
       recibidaEn:
         filtros.desde || filtros.hasta
           ? { gte: filtros.desde, lte: filtros.hasta }
@@ -126,13 +130,16 @@ export class PrismaEmergenciasRepositorio extends EmergenciasRepositorio {
           ...this.datosEditables(emergencia),
           estado: emergencia.estado,
           recibidaPorId: emergencia.recibidaPorId,
+          informanteUsuarioId: emergencia.informanteUsuarioId,
+          origenUbicacion: emergencia.origenUbicacion,
           recibidaEn: emergencia.recibidaEn,
         },
         select: seleccionEmergencia,
       });
       return this.aEntidad(registro);
     } catch (error) {
-      // numero_emergencia es la única columna única además del id.
+      // numero_emergencia es la única columna única además del id; un id
+      // repetido (reintento de la app) lo resuelve quien lo envía.
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2002'
@@ -238,6 +245,15 @@ export class PrismaEmergenciasRepositorio extends EmergenciasRepositorio {
       estado: this.validar(ESTADOS_EMERGENCIA, registro.estado, 'estado'),
       emergenciaPrincipalId: registro.emergenciaPrincipalId,
       recibidaPorId: registro.recibidaPorId,
+      informanteUsuarioId: registro.informanteUsuarioId,
+      origenUbicacion:
+        registro.origenUbicacion === null
+          ? null
+          : this.validar(
+              ORIGENES_UBICACION,
+              registro.origenUbicacion,
+              'origen de ubicación',
+            ),
       recibidaPorNombre: recibidaPor
         ? `${recibidaPor.nombres} ${recibidaPor.apellidos}`
         : null,

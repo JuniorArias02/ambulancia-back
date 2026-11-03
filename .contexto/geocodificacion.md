@@ -11,7 +11,7 @@ Convierte una dirección en coordenadas (**directa**) y un punto del mapa en dir
 | Método | Ruta | Roles | Caso de uso |
 | --- | --- | --- | --- |
 | POST | `/geocodificacion` | administrador, despachador | `GeocodificarDireccion` (`{ direccion, ciudad? }`). Límite: 30 por minuto |
-| POST | `/geocodificacion/inversa` | administrador, despachador | `GeocodificarCoordenadas` (`{ latitud, longitud }`). Límite: 60 por minuto |
+| POST | `/geocodificacion/inversa` | administrador, despachador, **ciudadano** (desde 2026-11-02) | `GeocodificarCoordenadas` (`{ latitud, longitud }`). Límite: 60 por minuto |
 
 Respuestas:
 - `200`: dirección encontrada y verificada. Trae `origen`: `almacenada` (no consumió la API) o `proveedor`.

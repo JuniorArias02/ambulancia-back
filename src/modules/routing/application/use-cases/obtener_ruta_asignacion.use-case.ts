@@ -44,7 +44,10 @@ export class ObtenerRutaAsignacion {
     if (solicitante) await this.exigirPermiso(asignacion, solicitante);
 
     const ruta = await this.rutasRepositorio.buscarVigente(asignacionId);
-    if (!ruta) throw new RecursoNoEncontradoError('Ruta del servicio');
+    // Una ruta de otro tramo o de un hospital anterior ya no se muestra.
+    if (!ruta?.esVigentePara(asignacion)) {
+      throw new RecursoNoEncontradoError('Ruta del servicio');
+    }
     return { asignacion, ruta };
   }
 

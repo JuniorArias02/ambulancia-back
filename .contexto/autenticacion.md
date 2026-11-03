@@ -10,6 +10,7 @@ Inicio y cierre de sesión, perfil del usuario actual y cambio de contraseña pr
 
 | Método | Ruta | Acceso | Caso de uso | Respuesta |
 | --- | --- | --- | --- | --- |
+| POST | `/autenticacion/iniciar-sesion-ciudadano` | pública, 5 intentos/min por IP | `IniciarSesion.ejecutarConDocumento` | Igual que el login con correo. **Solo ciudadanos** (el documento de otro rol cuenta como inexistente: `401`, motivo `usuario_inexistente`). El documento se normaliza con `common/utils/documento_identidad.ts` (2026-11-02) |
 | POST | `/autenticacion/iniciar-sesion` | pública (`@Publico()`), 5 intentos/min por IP | `IniciarSesion` | `200` `{ tokenAcceso, tipoToken: "Bearer", expiraEn, usuario }` |
 | GET | `/autenticacion/perfil` | cualquier rol | `ObtenerPerfil` | `200` usuario actual |
 | POST | `/autenticacion/cerrar-sesion` | cualquier rol | `CerrarSesion` | `204`, revoca la sesión actual |

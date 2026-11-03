@@ -1,5 +1,7 @@
 import { Injectable } from '@nestjs/common';
+import { Roles } from '../../../../common/constants/roles.js';
 import { NoAutenticadoError } from '../../../../common/exceptions/errores_dominio.js';
+import { normalizarNumeroDocumento } from '../../../../common/utils/documento_identidad.js';
 import { AuditoriaRepositorio } from '../../../audit/domain/repositories/auditoria.repository.js';
 import { Usuario } from '../../../users/domain/entities/usuario.entity.js';
 import { UsuariosRepositorio } from '../../../users/domain/repositories/usuarios.repository.js';
@@ -10,6 +12,12 @@ import { EmisorTokens } from '../../domain/services/emisor_tokens.service.js';
 
 export interface IniciarSesionEntrada {
   correo: string;
+  contrasena: string;
+  direccionIp: string | null;
+}
+
+export interface IniciarSesionDocumentoEntrada {
+  numeroDocumento: string;
   contrasena: string;
   direccionIp: string | null;
 }
@@ -36,7 +44,27 @@ export class IniciarSesion {
     const usuario = await this.usuariosRepositorio.buscarPorCorreo(
       Usuario.normalizarCorreo(datos.correo),
     );
+    return this.autenticar(usuario, datos);
+  }
 
+  /**
+   * Entrada de los ciudadanos con su cédula. El personal sigue entrando con
+   * correo: un documento de otro rol se trata igual que uno inexistente.
+   */
+  async ejecutarConDocumento(
+    datos: IniciarSesionDocumentoEntrada,
+  ): Promise<SesionIniciada> {
+    const encontrado = await this.usuariosRepositorio.buscarPorDocumento(
+      normalizarNumeroDocumento(datos.numeroDocumento),
+    );
+    const usuario = encontrado?.tieneRol(Roles.CIUDADANO) ? encontrado : null;
+    return this.autenticar(usuario, datos);
+  }
+
+  private async autenticar(
+    usuario: Usuario | null,
+    datos: { contrasena: string; direccionIp: string | null },
+  ): Promise<SesionIniciada> {
     // Se verifica contra un hash ficticio cuando el correo no existe para que
     // el tiempo de respuesta no revele qué cuentas están registradas.
     const hash = usuario?.contrasenaHash ?? (await this.obtenerHashFicticio());
@@ -85,7 +113,7 @@ export class IniciarSesion {
   private async registrarIntentoFallido(
     usuario: Usuario | null,
     contrasenaValida: boolean,
-    datos: IniciarSesionEntrada,
+    datos: { direccionIp: string | null },
   ): Promise<void> {
     let motivo = 'usuario_inexistente';
     if (usuario) {

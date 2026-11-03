@@ -9,3 +9,6 @@ node_modules
 
 /dist
 /coverage
+
+# Documentos de identidad de los ciudadanos: nunca al repositorio
+/almacenamiento-privado

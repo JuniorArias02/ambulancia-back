@@ -66,7 +66,7 @@ export class Ambulancia {
       codigo: Ambulancia.normalizarCodigo(datos.codigo),
       placa: Ambulancia.normalizarPlaca(datos.placa),
       tipo: datos.tipo,
-      // Nace fuera de servicio: se habilita cuando tenga tripulación.
+      // Nace fuera de servicio: se habilita cuando su tripulación la seleccione.
       estadoOperativo: 'fuera_servicio',
       ultimaUbicacion: null,
       creadaEn: new Date(),

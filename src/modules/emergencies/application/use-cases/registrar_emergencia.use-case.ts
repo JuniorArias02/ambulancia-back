@@ -16,6 +16,14 @@ export type RegistrarEmergenciaEntrada = Omit<
   'numeroEmergencia' | 'recibidaPorId' | 'recibidaEn'
 >;
 
+export interface OpcionesRegistroEmergencia {
+  /**
+   * `false` en los reportes de ciudadanos: nadie de la central la ha recibido
+   * todavía, así que `recibidaPorId` queda vacío hasta que un operador la gestione.
+   */
+  recibidaPorCentral: boolean;
+}
+
 /** Si dos despachadores registran a la vez y chocan en el consecutivo, se reintenta. */
 const INTENTOS_NUMERO = 3;
 
@@ -30,6 +38,9 @@ export class RegistrarEmergencia {
   async ejecutar(
     datos: RegistrarEmergenciaEntrada,
     contexto: ContextoSolicitud,
+    { recibidaPorCentral }: OpcionesRegistroEmergencia = {
+      recibidaPorCentral: true,
+    },
   ): Promise<Emergencia> {
     const recibidaEn = new Date();
     const prefijo = Emergencia.prefijoNumero(recibidaEn);
@@ -40,7 +51,7 @@ export class RegistrarEmergencia {
       const nueva = Emergencia.crear({
         ...datos,
         numeroEmergencia: Emergencia.formatearNumero(recibidaEn, consecutivo),
-        recibidaPorId: contexto.usuarioId,
+        recibidaPorId: recibidaPorCentral ? contexto.usuarioId : null,
         recibidaEn,
       });
 
@@ -53,6 +64,7 @@ export class RegistrarEmergencia {
           accion: 'crear',
           detalle: {
             numeroEmergencia: emergencia.numeroEmergencia,
+            fuente: emergencia.fuente,
             tipoIncidente: emergencia.tipoIncidente,
             prioridad: emergencia.prioridad,
           },

@@ -51,6 +51,11 @@ export class DespacharAmbulancia {
         `La ambulancia ${ambulancia.codigo} no tiene un turno activo`,
       );
     }
+    if (!turno.tieneTripulacionCompleta()) {
+      throw new ReglaNegocioError(
+        `La ambulancia ${ambulancia.codigo} no tiene tripulación completa`,
+      );
+    }
 
     const estadoEmergenciaAnterior = emergencia.estado;
     emergencia.despachar();

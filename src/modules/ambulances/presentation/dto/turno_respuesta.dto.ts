@@ -41,6 +41,9 @@ export class TurnoRespuestaDto {
   @ApiProperty({ type: [IntegranteRespuestaDto] })
   integrantes: IntegranteRespuestaDto[];
 
+  @ApiProperty({ description: 'Tiene conductor y quien atienda al paciente' })
+  tripulacionCompleta: boolean;
+
   static desde(turno: Turno): TurnoRespuestaDto {
     return {
       id: turno.id,
@@ -54,6 +57,7 @@ export class TurnoRespuestaDto {
         nombreCompleto: i.nombreCompleto,
         funcion: i.funcion,
       })),
+      tripulacionCompleta: turno.tieneTripulacionCompleta(),
     };
   }
 }

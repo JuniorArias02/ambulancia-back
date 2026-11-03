@@ -190,4 +190,155 @@ describe('CalcularRutaAsignacion', () => {
 
     expect(proveedor.llamadas).toHaveLength(1);
   });
+
+  describe('hacia el hospital', () => {
+    const hospital = { latitud: 7.91, longitud: -72.49 };
+
+    function destino(institucionId: string, coordenadas = hospital) {
+      return {
+        institucionId,
+        nombre: institucionId,
+        direccion: null,
+        telefono: null,
+        coordenadas,
+      };
+    }
+
+    async function enTraslado() {
+      const asignacion = await servicio();
+      asignacion.avanzar('en_camino', new Date());
+      asignacion.avanzar('en_escena', new Date());
+      asignacion.avanzar('atendiendo', new Date());
+      asignacion.avanzar('trasladando', new Date());
+      return asignacion;
+    }
+
+    it('sin hospital no calcula', async () => {
+      const asignacion = await enTraslado();
+
+      expect(
+        await crearCasoDeUso().ejecutar({
+          asignacionId: asignacion.id,
+          motivo: 'inicio_traslado',
+        }),
+      ).toBeNull();
+      expect(proveedor.llamadas).toHaveLength(0);
+    });
+
+    it('calcula desde la posición reciente hacia el hospital', async () => {
+      const asignacion = await enTraslado();
+      asignacion.definirDestino(destino('h1'), 'c1', new Date());
+
+      const ruta = await crearCasoDeUso().ejecutar({
+        asignacionId: asignacion.id,
+        motivo: 'inicio_traslado',
+      });
+
+      expect(ruta?.tramo).toBe('hacia_destino');
+      expect(ruta?.origen).toEqual(cucuta);
+      expect(ruta?.destino).toEqual(hospital);
+      expect(ruta?.esVigentePara(asignacion)).toBe(true);
+    });
+
+    it('con una posición vieja espera el siguiente GPS', async () => {
+      const asignacion = await servicio(new Date(Date.now() - 11 * 60 * 1000));
+      asignacion.avanzar('en_camino', new Date());
+      asignacion.avanzar('en_escena', new Date());
+      asignacion.avanzar('atendiendo', new Date());
+      asignacion.avanzar('trasladando', new Date());
+      asignacion.definirDestino(destino('h1'), 'c1', new Date());
+
+      expect(
+        await crearCasoDeUso().ejecutar({
+          asignacionId: asignacion.id,
+          motivo: 'inicio_traslado',
+        }),
+      ).toBeNull();
+    });
+
+    it('cambiar de hospital invalida la ruta anterior', async () => {
+      const asignacion = await enTraslado();
+      asignacion.definirDestino(destino('h1'), 'c1', new Date());
+      const anterior = await crearCasoDeUso().ejecutar({
+        asignacionId: asignacion.id,
+        motivo: 'inicio_traslado',
+      });
+
+      asignacion.definirDestino(
+        destino('h2', { latitud: 7.95, longitud: -72.4 }),
+        'c1',
+        new Date(Date.now() + 5),
+      );
+
+      expect(anterior?.esVigentePara(asignacion)).toBe(false);
+    });
+
+    it('volver a un hospital anterior tampoco reutiliza la ruta vieja', async () => {
+      const asignacion = await enTraslado();
+      asignacion.definirDestino(destino('h1'), 'c1', new Date());
+      const anterior = await crearCasoDeUso().ejecutar({
+        asignacionId: asignacion.id,
+        motivo: 'inicio_traslado',
+      });
+
+      asignacion.definirDestino(destino('h1'), 'c1', new Date(Date.now() + 5));
+
+      expect(anterior?.esVigentePara(asignacion)).toBe(false);
+    });
+
+    it('si el hospital cambia mientras responde el proveedor, descarta el resultado y no lo guarda', async () => {
+      const asignacion = await enTraslado();
+      asignacion.definirDestino(destino('h1'), 'c1', new Date());
+      const responder = proveedor.respuesta;
+      proveedor.respuesta = (origen, destinoPedido) => {
+        asignacion.definirDestino(
+          destino('h2', { latitud: 7.95, longitud: -72.4 }),
+          'c1',
+          new Date(Date.now() + 5),
+        );
+        return responder(origen, destinoPedido);
+      };
+
+      const ruta = await crearCasoDeUso().ejecutar({
+        asignacionId: asignacion.id,
+        motivo: 'inicio_traslado',
+      });
+
+      expect(ruta).toBeNull();
+      expect(rutas.rutas).toHaveLength(0);
+    });
+
+    it('un cálculo en curso hacia otro hospital no absorbe el del destino nuevo', async () => {
+      const asignacion = await enTraslado();
+      asignacion.definirDestino(destino('h1'), 'c1', new Date());
+      let soltar: () => void = () => undefined;
+      const responder = proveedor.respuesta;
+      proveedor.respuesta = async (origen, destinoPedido) => {
+        await new Promise<void>((resolver) => {
+          soltar = resolver;
+        });
+        proveedor.respuesta = responder;
+        return responder(origen, destinoPedido);
+      };
+      const casoDeUso = crearCasoDeUso();
+
+      const primero = casoDeUso.ejecutar({
+        asignacionId: asignacion.id,
+        motivo: 'inicio_traslado',
+      });
+      await new Promise((resolver) => setTimeout(resolver, 5));
+      const nuevo = { latitud: 7.95, longitud: -72.4 };
+      asignacion.definirDestino(destino('h2', nuevo), 'c1', new Date());
+      proveedor.respuesta = responder;
+      const segundo = await casoDeUso.ejecutar({
+        asignacionId: asignacion.id,
+        motivo: 'cambio_destino',
+      });
+      soltar();
+      await primero;
+
+      expect(segundo?.destino).toEqual(nuevo);
+      expect(rutas.rutas.map((r) => r.destino)).toEqual([nuevo]);
+    });
+  });
 });

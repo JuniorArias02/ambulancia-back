@@ -22,6 +22,8 @@ import { HashContrasena } from '../../src/modules/users/domain/services/hash_con
 
 export class UsuariosMemoria extends UsuariosRepositorio {
   readonly usuarios = new Map<string, Usuario>();
+  /** Número de documento normalizado → id del usuario (la entidad no lo trae). */
+  readonly documentos = new Map<string, string>();
 
   buscarPorId(id: string): Promise<Usuario | null> {
     return Promise.resolve(this.usuarios.get(id) ?? null);
@@ -32,6 +34,11 @@ export class UsuariosMemoria extends UsuariosRepositorio {
       (u) => u.correo === correo,
     );
     return Promise.resolve(usuario ?? null);
+  }
+
+  buscarPorDocumento(numeroDocumento: string): Promise<Usuario | null> {
+    const id = this.documentos.get(numeroDocumento);
+    return Promise.resolve(id ? (this.usuarios.get(id) ?? null) : null);
   }
 
   async existeCorreo(correo: string): Promise<boolean> {

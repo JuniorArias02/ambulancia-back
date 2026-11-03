@@ -1,14 +1,14 @@
 import { Module } from '@nestjs/common';
 import { AuditModule } from '../audit/audit.module.js';
-import { UsersModule } from '../users/users.module.js';
-import { ValidadorTripulacion } from './application/services/validador_tripulacion.service.js';
+import { ConsultarAmbulanciasSeleccionables } from './application/use-cases/consultar_ambulancias_seleccionables.use-case.js';
 import { ConsultarTurnos } from './application/use-cases/consultar_turnos.use-case.js';
 import { FinalizarTurno } from './application/use-cases/finalizar_turno.use-case.js';
-import { IniciarTurno } from './application/use-cases/iniciar_turno.use-case.js';
 import { ObtenerTurno } from './application/use-cases/obtener_turno.use-case.js';
-import { ReemplazarIntegrantesTurno } from './application/use-cases/reemplazar_integrantes_turno.use-case.js';
+import { SalirDeAmbulancia } from './application/use-cases/salir_de_ambulancia.use-case.js';
+import { SeleccionarAmbulancia } from './application/use-cases/seleccionar_ambulancia.use-case.js';
 import { TurnosRepositorio } from './domain/repositories/turnos.repository.js';
 import { PrismaTurnosRepositorio } from './infrastructure/repositories/prisma_turnos.repository.js';
+import { MiAmbulanciaController } from './presentation/controllers/mi_ambulancia.controller.js';
 import { TurnosController } from './presentation/controllers/turnos.controller.js';
 import { ActualizarAmbulancia } from './application/use-cases/actualizar_ambulancia.use-case.js';
 import { CambiarEstadoAmbulancia } from './application/use-cases/cambiar_estado_ambulancia.use-case.js';
@@ -25,11 +25,12 @@ import { AmbulanciasController } from './presentation/controllers/ambulancias.co
 import { TiposAmbulanciaController } from './presentation/controllers/tipos_ambulancia.controller.js';
 
 @Module({
-  imports: [AuditModule, UsersModule],
+  imports: [AuditModule],
   controllers: [
     AmbulanciasController,
     TiposAmbulanciaController,
     TurnosController,
+    MiAmbulanciaController,
   ],
   providers: [
     { provide: AmbulanciasRepositorio, useClass: PrismaAmbulanciasRepositorio },
@@ -45,12 +46,12 @@ import { TiposAmbulanciaController } from './presentation/controllers/tipos_ambu
     ConsultarHistorialEstadosAmbulancia,
     ConsultarTiposAmbulancia,
     { provide: TurnosRepositorio, useClass: PrismaTurnosRepositorio },
-    ValidadorTripulacion,
-    IniciarTurno,
     ConsultarTurnos,
     ObtenerTurno,
-    ReemplazarIntegrantesTurno,
     FinalizarTurno,
+    SeleccionarAmbulancia,
+    SalirDeAmbulancia,
+    ConsultarAmbulanciasSeleccionables,
   ],
   // Asignaciones y ubicaciones los usan para despachar y ubicar a la tripulación;
   // el tiempo real, para recargar la ambulancia y el turno.

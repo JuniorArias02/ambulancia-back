@@ -119,6 +119,15 @@ export class VariablesEntorno {
   ASIGNACIONES_RADIO_LLEGADA_M?: number;
 
   /**
+   * Carpeta privada para las fotos de los documentos de identidad. Nunca debe
+   * servirse por HTTP. Relativa a la carpeta desde donde arranca la API.
+   */
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  ALMACENAMIENTO_PRIVADO_RUTA?: string;
+
+  /**
    * Servidor de tiempo real (proyecto `webSocket/`). Opcional: sin URL o sin
    * clave, la API funciona igual pero no envía notificaciones. Vacías en el
    * `.env` cuentan como no configuradas.

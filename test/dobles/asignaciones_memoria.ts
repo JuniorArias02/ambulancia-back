@@ -91,6 +91,11 @@ export class AsignacionesMemoria extends AsignacionesRepositorio {
     return asignacion;
   }
 
+  registrarDestino(asignacion: Asignacion): Promise<Asignacion> {
+    this.asignaciones.set(asignacion.id, asignacion);
+    return Promise.resolve(asignacion);
+  }
+
   listarEventos(asignacionId: string): Promise<EventoAsignacion[]> {
     return Promise.resolve(
       this.eventos.filter((e) => e.asignacionId === asignacionId),

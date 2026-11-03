@@ -10,7 +10,7 @@ import {
   MinLength,
 } from 'class-validator';
 import {
-  NOMBRES_ROLES,
+  ROLES_INTERNOS,
   type NombreRol,
 } from '../../../../common/constants/roles.js';
 import {
@@ -62,9 +62,9 @@ export class CrearUsuarioDto {
 
   @ApiProperty({
     description: 'Rol que se asigna al usuario',
-    enum: NOMBRES_ROLES,
+    enum: ROLES_INTERNOS,
     example: 'despachador',
   })
-  @IsIn(NOMBRES_ROLES)
+  @IsIn(ROLES_INTERNOS)
   rol: NombreRol;
 }

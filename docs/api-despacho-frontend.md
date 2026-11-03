@@ -9,6 +9,8 @@ Complementa a [`api-ambulancias-frontend.md`](api-ambulancias-frontend.md) y [`a
 
 ---
 
+> **Cambio (2026-11-01):** la central ya no arma tripulaciones. `POST /turnos` y `PUT /turnos/{id}/integrantes` no existen y lo que diga la sección 3 sobre ellos ya no aplica. Ver [`instrucciones-agente-frontend.md`](instrucciones-agente-frontend.md).
+
 ## 1. El flujo completo (cómo encaja todo)
 
 ```text

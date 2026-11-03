@@ -50,6 +50,7 @@ import { MiServicioController } from './presentation/controllers/mi_servicio.con
   // tiempo real, para avisar a la central y a la tripulación.
   exports: [
     AsignacionesRepositorio,
+    PermisoServicio,
     ObtenerAsignacion,
     ConsultarAsignaciones,
     ObtenerMiServicio,

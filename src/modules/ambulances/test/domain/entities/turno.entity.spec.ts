@@ -12,15 +12,32 @@ describe('Turno', () => {
     expect(turno.fin).toBeNull();
   });
 
-  it('exige un conductor y alguien que atienda al paciente', () => {
+  it('puede iniciar con una sola persona, pero aún no está completo', () => {
+    const turno = crearTurnoPrueba('amb-1', [
+      { usuarioId: 'c1', funcion: 'conductor' },
+    ]);
+
+    expect(turno.tieneTripulacionCompleta()).toBe(false);
+    turno.agregarIntegrante({ usuarioId: 'p1', funcion: 'paramedico' });
+    expect(turno.tieneTripulacionCompleta()).toBe(true);
+  });
+
+  it('no admite dos conductores, ni un turno vacío, ni pasar el máximo', () => {
+    const conConductor = crearTurnoPrueba('amb-1', [
+      { usuarioId: 'c1', funcion: 'conductor' },
+    ]);
     expect(() =>
-      crearTurnoPrueba('amb-1', [
-        { usuarioId: 'p1', funcion: 'paramedico' },
-        { usuarioId: 'p2', funcion: 'medico' },
-      ]),
+      conConductor.agregarIntegrante({ usuarioId: 'c2', funcion: 'conductor' }),
     ).toThrow(ReglaNegocioError);
+    expect(() => crearTurnoPrueba('amb-1', [])).toThrow(ReglaNegocioError);
     expect(() =>
-      crearTurnoPrueba('amb-1', [{ usuarioId: 'c1', funcion: 'conductor' }]),
+      crearTurnoPrueba(
+        'amb-1',
+        ['p1', 'p2', 'p3', 'p4', 'p5'].map((usuarioId) => ({
+          usuarioId,
+          funcion: 'paramedico' as const,
+        })),
+      ),
     ).toThrow(ReglaNegocioError);
   });
 
@@ -33,11 +50,10 @@ describe('Turno', () => {
     ).toThrow(ReglaNegocioError);
   });
 
-  it('relaciona la función con el rol', () => {
-    expect(Turno.puedeCumplir(Roles.CONDUCTOR, 'conductor')).toBe(true);
-    expect(Turno.puedeCumplir(Roles.PARAMEDICO, 'medico')).toBe(true);
-    expect(Turno.puedeCumplir(Roles.CONDUCTOR, 'paramedico')).toBe(false);
-    expect(Turno.puedeCumplir(Roles.DESPACHADOR, 'conductor')).toBe(false);
+  it('la función sale del rol', () => {
+    expect(Turno.funcionDelRol(Roles.CONDUCTOR)).toBe('conductor');
+    expect(Turno.funcionDelRol(Roles.PARAMEDICO)).toBe('paramedico');
+    expect(Turno.funcionDelRol(Roles.DESPACHADOR)).toBeNull();
   });
 
   it('una vez finalizado no se modifica', () => {
@@ -47,10 +63,7 @@ describe('Turno', () => {
     expect(turno.estado).toBe('finalizado');
     expect(() => turno.finalizar(new Date())).toThrow(ReglaNegocioError);
     expect(() =>
-      turno.reemplazarIntegrantes([
-        { usuarioId: 'c2', funcion: 'conductor' },
-        { usuarioId: 'p2', funcion: 'paramedico' },
-      ]),
+      turno.agregarIntegrante({ usuarioId: 'p2', funcion: 'paramedico' }),
     ).toThrow(ReglaNegocioError);
   });
 });

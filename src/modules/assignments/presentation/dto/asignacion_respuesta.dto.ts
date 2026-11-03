@@ -19,6 +19,31 @@ export class AsignadaPorRespuestaDto {
   nombreCompleto: string | null;
 }
 
+class CoordenadasDestinoDto {
+  @ApiProperty({ example: 7.9 })
+  latitud: number;
+
+  @ApiProperty({ example: -72.49 })
+  longitud: number;
+}
+
+export class InstitucionDestinoRespuestaDto {
+  @ApiProperty({ format: 'uuid' })
+  id: string;
+
+  @ApiProperty({ example: 'Hospital Erasmo Meoz' })
+  nombre: string;
+
+  @ApiPropertyOptional({ type: String, nullable: true })
+  direccion: string | null;
+
+  @ApiPropertyOptional({ type: String, nullable: true })
+  telefono: string | null;
+
+  @ApiPropertyOptional({ type: CoordenadasDestinoDto, nullable: true })
+  coordenadas: CoordenadasDestinoDto | null;
+}
+
 export class AsignacionRespuestaDto {
   @ApiProperty({ format: 'uuid' })
   id: string;
@@ -83,6 +108,24 @@ export class AsignacionRespuestaDto {
   @ApiPropertyOptional({ type: Date, nullable: true })
   finalizadaEn: Date | null;
 
+  @ApiPropertyOptional({
+    type: InstitucionDestinoRespuestaDto,
+    nullable: true,
+    description:
+      'A dónde va la ambulancia; lo define el conductor. La entrega real de cada paciente queda en su historia clínica',
+  })
+  institucionDestino: InstitucionDestinoRespuestaDto | null;
+
+  @ApiPropertyOptional({
+    type: AsignadaPorRespuestaDto,
+    nullable: true,
+    description: 'Quién definió o cambió el destino por última vez',
+  })
+  destinoActualizadoPor: AsignadaPorRespuestaDto | null;
+
+  @ApiPropertyOptional({ type: Date, nullable: true })
+  destinoActualizadoEn: Date | null;
+
   static desde(asignacion: Asignacion): AsignacionRespuestaDto {
     return {
       id: asignacion.id,
@@ -107,6 +150,22 @@ export class AsignacionRespuestaDto {
       salidaEscenaEn: asignacion.salidaEscenaEn,
       llegadaDestinoEn: asignacion.llegadaDestinoEn,
       finalizadaEn: asignacion.finalizadaEn,
+      institucionDestino: asignacion.destino
+        ? {
+            id: asignacion.destino.institucionId,
+            nombre: asignacion.destino.nombre,
+            direccion: asignacion.destino.direccion,
+            telefono: asignacion.destino.telefono,
+            coordenadas: asignacion.destino.coordenadas,
+          }
+        : null,
+      destinoActualizadoPor: asignacion.destinoActualizadoPorId
+        ? {
+            id: asignacion.destinoActualizadoPorId,
+            nombreCompleto: asignacion.destinoActualizadoPorNombre,
+          }
+        : null,
+      destinoActualizadoEn: asignacion.destinoActualizadoEn,
     };
   }
 }

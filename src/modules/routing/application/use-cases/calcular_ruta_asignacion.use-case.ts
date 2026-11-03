@@ -4,24 +4,20 @@ import { FallaProveedorExterno } from '../../../../common/exceptions/falla_prove
 import { ConsultasEnCurso } from '../../../../common/utils/consultas_en_curso.js';
 import type { PuntoGeografico } from '../../../../common/utils/geografia.js';
 import { AmbulanciasRepositorio } from '../../../ambulances/domain/repositories/ambulancias.repository.js';
-import type { EstadoAsignacion } from '../../../assignments/domain/entities/asignacion.entity.js';
+import type { Asignacion } from '../../../assignments/domain/entities/asignacion.entity.js';
 import { AsignacionesRepositorio } from '../../../assignments/domain/repositories/asignaciones.repository.js';
 import { EmergenciasRepositorio } from '../../../emergencies/domain/repositories/emergencias.repository.js';
 import {
   type MotivoRuta,
   RutaAsignacion,
+  type TramoRuta,
+  tramoDelEstado,
 } from '../../domain/entities/ruta_asignacion.entity.js';
 import { RutasAsignacionRepositorio } from '../../domain/repositories/rutas_asignacion.repository.js';
 import {
   ProveedoresRutas,
   type RutaCalculada,
 } from '../../domain/services/proveedor_rutas.js';
-
-/** Mientras la ambulancia va hacia la emergencia. En escena ya no hay ruta que mostrar. */
-export const ESTADOS_CON_RUTA: readonly EstadoAsignacion[] = [
-  'asignada',
-  'en_camino',
-];
 
 /**
  * Una posición más vieja que esto no sirve como punto de partida: la
@@ -38,10 +34,11 @@ export interface CalcularRutaEntrada {
 }
 
 /**
- * Calcula la ruta por calles de un servicio, la guarda y avisa por el bus de
- * eventos. Devuelve null (y no guarda nada) cuando no se puede calcular: sin
- * GPS reciente, emergencia sin coordenadas o proveedores sin respuesta. Nunca
- * lanza: lo invocan eventos, no una petición HTTP.
+ * Calcula la ruta por calles de un servicio, hacia la emergencia o hacia el
+ * hospital según su estado, la guarda y avisa por el bus de eventos. Devuelve
+ * null (y no guarda nada) cuando no se puede calcular: sin GPS reciente, destino
+ * sin definir o sin coordenadas, o proveedores sin respuesta. Nunca lanza: lo
+ * invocan eventos, no una petición HTTP.
  */
 @Injectable()
 export class CalcularRutaAsignacion {
@@ -57,55 +54,75 @@ export class CalcularRutaAsignacion {
     private readonly eventos: PublicadorEventos,
   ) {}
 
-  /** Dos disparos simultáneos para el mismo servicio (despacho + primer GPS) calculan una sola vez. */
-  ejecutar(datos: CalcularRutaEntrada): Promise<RutaAsignacion | null> {
-    return this.enCurso.ejecutar(datos.asignacionId, () =>
-      this.calcular(datos),
+  /**
+   * Dos disparos simultáneos hacia el mismo destino (despacho + primer GPS)
+   * calculan una sola vez; si el hospital cambió, no se reutiliza el cálculo anterior.
+   */
+  async ejecutar(datos: CalcularRutaEntrada): Promise<RutaAsignacion | null> {
+    // Antes de leer: si el destino cambia después, esta ruta queda invalidada.
+    const calculadaEn = new Date();
+    const asignacion = await this.asignacionesRepositorio.buscarPorId(
+      datos.asignacionId,
+    );
+    const tramo = asignacion ? tramoDelEstado(asignacion.estado) : null;
+    if (!asignacion || !tramo) return null;
+    const destino = await this.destinoDe(asignacion, tramo);
+    if (!destino) return null;
+
+    return this.enCurso.ejecutar(
+      `${asignacion.id}:${tramo}:${destino.latitud},${destino.longitud}`,
+      () => this.calcular(datos, asignacion, tramo, destino, calculadaEn),
     );
   }
 
-  private async calcular({
-    asignacionId,
-    motivo,
-    origen,
-  }: CalcularRutaEntrada): Promise<RutaAsignacion | null> {
-    const asignacion =
-      await this.asignacionesRepositorio.buscarPorId(asignacionId);
-    if (!asignacion || !ESTADOS_CON_RUTA.includes(asignacion.estado))
-      return null;
-
-    const emergencia = await this.emergenciasRepositorio.buscarPorId(
-      asignacion.emergenciaId,
-    );
-    const destino = emergencia?.coordenadas;
-    if (!destino) return null;
-
-    const ahora = new Date();
+  private async calcular(
+    { asignacionId, motivo, origen }: CalcularRutaEntrada,
+    asignacion: Asignacion,
+    tramo: TramoRuta,
+    destino: PuntoGeografico,
+    calculadaEn: Date,
+  ): Promise<RutaAsignacion | null> {
     const partida =
       origen ??
-      (await this.ultimaPosicionReciente(asignacion.ambulanciaId, ahora));
+      (await this.ultimaPosicionReciente(asignacion.ambulanciaId, calculadaEn));
     if (!partida) return null;
 
     const calculada = await this.consultarProveedores(partida, destino);
     if (!calculada) return null;
 
-    const ruta = await this.rutasRepositorio.guardar(
-      RutaAsignacion.calcular({
-        asignacionId,
-        tramo: 'hacia_emergencia',
-        motivo,
-        origen: partida,
-        destino,
-        ruta: calculada.ruta,
-        proveedor: calculada.proveedor,
-        calculadaEn: ahora,
-      }),
-    );
+    const nueva = RutaAsignacion.calcular({
+      asignacionId,
+      tramo,
+      motivo,
+      origen: partida,
+      destino,
+      ruta: calculada.ruta,
+      proveedor: calculada.proveedor,
+      calculadaEn,
+    });
+    // El proveedor tarda: el servicio pudo avanzar o cambiar de hospital.
+    const actual = await this.asignacionesRepositorio.buscarPorId(asignacionId);
+    if (!actual || !nueva.esVigentePara(actual)) return null;
+
+    const ruta = await this.rutasRepositorio.guardar(nueva);
     this.eventos.publicar({
       tipo: 'asignacion.ruta_actualizada',
       asignacionId,
     });
     return ruta;
+  }
+
+  private async destinoDe(
+    asignacion: Asignacion,
+    tramo: TramoRuta,
+  ): Promise<PuntoGeografico | null> {
+    if (tramo === 'hacia_destino') {
+      return asignacion.destino?.coordenadas ?? null;
+    }
+    const emergencia = await this.emergenciasRepositorio.buscarPorId(
+      asignacion.emergenciaId,
+    );
+    return emergencia?.coordenadas ?? null;
   }
 
   private async ultimaPosicionReciente(

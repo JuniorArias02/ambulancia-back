@@ -41,7 +41,7 @@ Turnos y asignaciones los necesitan **las dos apps**, así que avanzan la web y 
 | # | Módulo | Web | Móvil | Estado |
 | --- | --- | --- | --- | --- |
 | 0 | Auditoría, usuarios, autenticación, ambulancias, emergencias | ✅ | login ✅ | ✅ Hecho |
-| 1 | **Turnos** | Armar la tripulación de cada ambulancia; solo pasa a `disponible` con turno activo | El backend sabe a qué ambulancia pertenece cada usuario | ✅ Hecho |
+| 1 | **Turnos** | Consultar tripulaciones y cerrar turnos abiertos | Cada persona selecciona su ambulancia ([seleccion-ambulancia.md](seleccion-ambulancia.md)) | ✅ Hecho |
 | 2 | **Asignaciones** | El despachador despacha una ambulancia `disponible` a una emergencia `recibida` | `GET /mi-servicio` y marcar el avance | ✅ Hecho |
 | 3 | **GPS** | Mapa en vivo de las ambulancias | El celular envía su posición | ✅ Hecho |
 | 3b | **Instituciones de salud** | CRUD (administrador) | Elegir el destino del traslado por cercanía | ✅ Hecho |

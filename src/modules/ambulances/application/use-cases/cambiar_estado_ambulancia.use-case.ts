@@ -40,14 +40,16 @@ export class CambiarEstadoAmbulancia {
     const estadoAnterior = ambulancia.estadoOperativo;
     ambulancia.cambiarEstadoManual(datos.estado);
 
-    // Sin tripulación no se puede despachar: no tiene sentido mostrarla disponible.
-    if (
-      datos.estado === 'disponible' &&
-      !(await this.turnosRepositorio.buscarActivoDeAmbulancia(ambulancia.id))
-    ) {
-      throw new ReglaNegocioError(
-        'La ambulancia no tiene un turno activo; inicie un turno antes de habilitarla',
+    // Sin tripulación completa no se puede despachar: no tiene sentido mostrarla disponible.
+    if (datos.estado === 'disponible') {
+      const turno = await this.turnosRepositorio.buscarActivoDeAmbulancia(
+        ambulancia.id,
       );
+      if (!turno?.tieneTripulacionCompleta()) {
+        throw new ReglaNegocioError(
+          'La ambulancia no tiene tripulación completa; el conductor y el paramédico deben seleccionarla desde la app',
+        );
+      }
     }
 
     const actualizada = await this.ambulanciasRepositorio.cambiarEstado(

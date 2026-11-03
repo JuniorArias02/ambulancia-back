@@ -11,8 +11,10 @@ import { Prisma } from '../../../../generated/prisma/client.js';
 import type { EventoAsignacion } from '../../domain/entities/evento_asignacion.entity.js';
 import {
   Asignacion,
+  type DestinoAsignacion,
   ESTADOS_ACTIVOS_ASIGNACION,
   ESTADOS_ASIGNACION,
+  ESTADOS_CON_DESTINO,
   type EstadoAsignacion,
 } from '../../domain/entities/asignacion.entity.js';
 import {
@@ -40,6 +42,19 @@ const seleccionAsignacion = {
   emergencia: { select: { numeroEmergencia: true } },
   ambulancia: { select: { codigo: true } },
   asignadaPor: { select: { nombres: true, apellidos: true } },
+  destinoActualizadoPorId: true,
+  destinoActualizadoEn: true,
+  destinoActualizadoPor: { select: { nombres: true, apellidos: true } },
+  institucionDestino: {
+    select: {
+      id: true,
+      nombre: true,
+      direccion: true,
+      telefono: true,
+      latitud: true,
+      longitud: true,
+    },
+  },
 } satisfies Prisma.AsignacionServicioSelect;
 
 type RegistroAsignacion = Prisma.AsignacionServicioGetPayload<{
@@ -143,6 +158,7 @@ export class PrismaAsignacionesRepositorio extends AsignacionesRepositorio {
     const registro = await this.prisma.$transaction(async (tx) => {
       await this.aplicarEmergencia(tx, emergencia, asignacion.id);
       await this.aplicarAmbulancia(tx, ambulancia);
+      await this.exigirTurnoVigente(tx, asignacion);
       const creada = await tx.asignacionServicio.create({
         data: {
           id: asignacion.id,
@@ -203,6 +219,27 @@ export class PrismaAsignacionesRepositorio extends AsignacionesRepositorio {
     return this.aEntidad(registro);
   }
 
+  async registrarDestino(asignacion: Asignacion): Promise<Asignacion> {
+    const { count } = await this.prisma.asignacionServicio.updateMany({
+      where: { id: asignacion.id, estado: { in: [...ESTADOS_CON_DESTINO] } },
+      data: {
+        institucionDestinoId: asignacion.destino?.institucionId ?? null,
+        destinoActualizadoPorId: asignacion.destinoActualizadoPorId,
+        destinoActualizadoEn: asignacion.destinoActualizadoEn,
+      },
+    });
+    if (count === 0) {
+      throw new ConflictoNegocioError(
+        'El servicio cambió de estado mientras tanto; vuelva a consultarlo',
+      );
+    }
+    const registro = await this.prisma.asignacionServicio.findUniqueOrThrow({
+      where: { id: asignacion.id },
+      select: seleccionAsignacion,
+    });
+    return this.aEntidad(registro);
+  }
+
   async listarEventos(asignacionId: string): Promise<EventoAsignacion[]> {
     const registros = await this.prisma.eventoAsignacion.findMany({
       where: { asignacionId },
@@ -252,6 +289,23 @@ export class PrismaAsignacionesRepositorio extends AsignacionesRepositorio {
   }
 
   /** Cambia el estado de la ambulancia solo si sigue en el estado leído, y deja el historial. */
+  /**
+   * La tripulación pudo cambiar después de leer el turno. La ambulancia ya está
+   * bloqueada; `FOR UPDATE` lee el estado confirmado, no la foto de la transacción.
+   */
+  private async exigirTurnoVigente(
+    tx: Transaccion,
+    { turnoId }: Asignacion,
+  ): Promise<void> {
+    const filas = await tx.$queryRaw<{ estado: string }[]>`
+      SELECT estado FROM turnos WHERE id = ${turnoId} FOR UPDATE`;
+    if (filas[0]?.estado !== 'activo') {
+      throw new ConflictoNegocioError(
+        'La tripulación de la ambulancia cambió mientras tanto; vuelva a intentarlo',
+      );
+    }
+  }
+
   private async aplicarAmbulancia(
     tx: Transaccion,
     { ambulancia, cambio }: CambioAmbulancia,
@@ -366,7 +420,32 @@ export class PrismaAsignacionesRepositorio extends AsignacionesRepositorio {
       asignadaPorNombre: registro.asignadaPor
         ? `${registro.asignadaPor.nombres} ${registro.asignadaPor.apellidos}`
         : null,
+      destino: this.aDestino(registro),
+      destinoActualizadoPorId: registro.destinoActualizadoPorId,
+      destinoActualizadoEn: registro.destinoActualizadoEn,
+      destinoActualizadoPorNombre: registro.destinoActualizadoPor
+        ? `${registro.destinoActualizadoPor.nombres} ${registro.destinoActualizadoPor.apellidos}`
+        : null,
     });
+  }
+
+  private aDestino({
+    institucionDestino: institucion,
+  }: RegistroAsignacion): DestinoAsignacion | null {
+    if (!institucion) return null;
+    return {
+      institucionId: institucion.id,
+      nombre: institucion.nombre,
+      direccion: institucion.direccion,
+      telefono: institucion.telefono,
+      coordenadas:
+        institucion.latitud !== null && institucion.longitud !== null
+          ? {
+              latitud: institucion.latitud.toNumber(),
+              longitud: institucion.longitud.toNumber(),
+            }
+          : null,
+    };
   }
 
   private aEvento(registro: RegistroEvento): EventoAsignacion {

@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 import { AmbulancesModule } from '../ambulances/ambulances.module.js';
 import { AssignmentsModule } from '../assignments/assignments.module.js';
 import { AuditModule } from '../audit/audit.module.js';
+import { DefinirDestinoAsignacion } from './application/use-cases/definir_destino_asignacion.use-case.js';
+import { DestinoAsignacionController } from './presentation/controllers/destino_asignacion.controller.js';
 import { AccesoHistoriaClinica } from './application/services/acceso_historia_clinica.service.js';
 import { HuellaHistoria } from './application/services/huella_historia.service.js';
 import { AbrirHistoriaClinica } from './application/use-cases/abrir_historia_clinica.use-case.js';
@@ -26,7 +28,11 @@ import { InstitucionesSaludController } from './presentation/controllers/institu
 /** Atención prehospitalaria: historia clínica del paciente e instituciones de salud de destino. */
 @Module({
   imports: [AuditModule, AssignmentsModule, AmbulancesModule],
-  controllers: [InstitucionesSaludController, HistoriasClinicasController],
+  controllers: [
+    InstitucionesSaludController,
+    HistoriasClinicasController,
+    DestinoAsignacionController,
+  ],
   providers: [
     {
       provide: InstitucionesSaludRepositorio,
@@ -37,6 +43,7 @@ import { InstitucionesSaludController } from './presentation/controllers/institu
     ObtenerInstitucionSalud,
     ActualizarInstitucionSalud,
     CambiarEstadoInstitucionSalud,
+    DefinirDestinoAsignacion,
     {
       provide: HistoriasClinicasRepositorio,
       useClass: PrismaHistoriasClinicasRepositorio,

@@ -3,10 +3,13 @@
 > Última actualización: 2026-10-24. Índice de esta carpeta:
 > - [00-general.md](00-general.md): este archivo (stack, arquitectura, convenciones, estado)
 > - [usuarios.md](usuarios.md): usuarios y roles
+> - [ciudadanos.md](ciudadanos.md): registro de ciudadanos, verificación documental y reportes de emergencia desde la app
 > - [autenticacion.md](autenticacion.md): login, sesiones, JWT, contraseña
 > - [ambulancias.md](ambulancias.md): flota, tipos y estados operativos
 > - [emergencias.md](emergencias.md): registro de emergencias, cancelación y duplicados
 > - [turnos.md](turnos.md): tripulaciones por ambulancia
+> - [seleccion-ambulancia.md](seleccion-ambulancia.md): el conductor y el paramédico eligen su ambulancia desde la app
+> - [ruta-institucion.md](ruta-institucion.md): el conductor elige el hospital y se calcula la ruta del traslado
 > - [asignaciones.md](asignaciones.md): despacho y avance del servicio
 > - [ubicaciones.md](ubicaciones.md): GPS y recorridos
 > - [instituciones-salud.md](instituciones-salud.md): catálogo de destinos
@@ -72,7 +75,7 @@ src/modules/<modulo>/
 └── <modulo>.module.ts   # enlaza contrato → implementación ({ provide: Repo, useClass: PrismaRepo })
 ```
 
-Módulos actuales: `audit`, `users`, `authentication`, `ambulances` (incluye turnos), `emergencies`, `assignments`, `locations`, `prehospital_care` (historia clínica e instituciones de salud), `geocoding`, `routing`, `notifications`, `notifications` (tiempo real; ver [tiempo-real.md](tiempo-real.md)) (todos registrados en `src/app.module.ts`). Además, `src/common/events/` tiene el bus de eventos de dominio (`EventosModule`, global).
+Módulos actuales: `audit`, `users`, `authentication`, `citizens` (ciudadanos), `ambulances` (incluye turnos), `emergencies`, `assignments`, `locations`, `prehospital_care` (historia clínica e instituciones de salud), `geocoding`, `routing`, `notifications`, `notifications` (tiempo real; ver [tiempo-real.md](tiempo-real.md)) (todos registrados en `src/app.module.ts`). Además, `src/common/events/` tiene el bus de eventos de dominio (`EventosModule`, global).
 
 ### Patrones que se repiten
 
@@ -132,7 +135,12 @@ Cuerpo de error: `{ codigoEstado, error, mensaje, ruta, fecha }`.
 | `api-usuarios-roles-frontend.md` | Frontend: autenticación, roles y usuarios |
 | `api-ambulancias-frontend.md` | Frontend: tipos de ambulancia y ambulancias |
 | `api-emergencias-frontend.md` | Frontend: emergencias y duplicados |
-| `api-despacho-frontend.md` | Frontend: turnos, asignaciones, ubicaciones e instituciones de salud |
+| `api-despacho-frontend.md` | Frontend: asignaciones, ubicaciones e instituciones de salud (la sección de turnos fue reemplazada) |
+| `instrucciones-agente-flutter.md` | Flutter: selección de ambulancia |
+| `RUTA_INSTITUCION_FLUTTER.md` | Flutter: hospital de destino y ruta del traslado |
+| `INTEGRACION_MODULO_CIUDADANO_FLUTTER.md` | Flutter: módulo ciudadano (registro, verificación, mapa, reportes) |
+| `ACCESO_CEDULA_CIUDADANO_FLUTTER.md` | Flutter: acceso del ciudadano con cédula (¿existe? → contraseña o registro) |
+| `instrucciones-agente-frontend.md` | Frontend: quitar la asignación de tripulación |
 | `api-app-movil.md` | App Flutter: login, sesión y pantalla de inicio (`/mi-servicio`) |
 | `api-mapa-ambulancias-frontend.md` | Frontend: mapa de la flota (posiciones, filtros por estado, tiempo real) |
 | `api-rutas-frontend.md` | Frontend web y app: rutas de las ambulancias (GeoJSON, ETA, tiempo real) |

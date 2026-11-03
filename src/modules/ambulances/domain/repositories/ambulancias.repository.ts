@@ -23,6 +23,8 @@ export abstract class AmbulanciasRepositorio {
     filtros: FiltrosAmbulancias,
     paginacion: Paginacion,
   ): Promise<ResultadoPaginado<Ambulancia>>;
+  /** Toda la flota, por código: la app muestra de cuál puede elegir. */
+  abstract listarTodas(): Promise<Ambulancia[]>;
   abstract crear(ambulancia: Ambulancia): Promise<Ambulancia>;
   /** Persiste código, placa y tipo. El estado se cambia con `cambiarEstado`. */
   abstract actualizar(ambulancia: Ambulancia): Promise<Ambulancia>;

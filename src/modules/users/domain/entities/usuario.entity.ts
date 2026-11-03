@@ -1,5 +1,6 @@
 import {
   type NombreRol,
+  Roles,
   esRolValido,
 } from '../../../../common/constants/roles.js';
 import { ReglaNegocioError } from '../../../../common/exceptions/errores_dominio.js';
@@ -131,8 +132,18 @@ export class Usuario {
     this.propiedades.estado = estado;
   }
 
+  /** Un ciudadano no se convierte en personal ni al revés: tiene su propio registro y verificación. */
   asignarRol(rol: string): void {
-    this.propiedades.rol = Usuario.validarRol(rol);
+    const nuevo = Usuario.validarRol(rol);
+    if (
+      (nuevo === Roles.CIUDADANO) !==
+      (this.propiedades.rol === Roles.CIUDADANO)
+    ) {
+      throw new ReglaNegocioError(
+        'El rol ciudadano no se asigna ni se retira desde la gestión de usuarios',
+      );
+    }
+    this.propiedades.rol = nuevo;
   }
 
   cambiarContrasena(contrasenaHash: string): void {

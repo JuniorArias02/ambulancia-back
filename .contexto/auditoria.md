@@ -41,17 +41,19 @@ Implementación: `infrastructure/repositories/prisma_auditoria.repository.ts`. D
 | `sesiones` | `iniciar_sesion` | — |
 | `ambulancias` | `crear` | `codigo`, `placa` |
 | `ambulancias` | `actualizar` | `campos` enviados |
-| `ambulancias` | `cambiar_estado` | `estadoAnterior`, `estadoNuevo` (el motivo queda en `estados_ambulancia_historial`) |
+| `ambulancias` | `cambiar_estado` | `estadoAnterior`, `estadoNuevo`; `origen: 'tripulacion'` si lo causó una selección o salida (el motivo queda en `estados_ambulancia_historial`) |
 | `emergencias` | `crear` | `numeroEmergencia`, `tipoIncidente`, `prioridad` |
 | `emergencias` | `actualizar` | `campos` enviados; `prioridadAnterior` / `prioridadNueva` si cambió |
 | `emergencias` | `cancelar` | `estadoAnterior`, `motivo` (solo aquí: la tabla no tiene columna de motivo) |
 | `emergencias` | `marcar_duplicada` | `emergenciaPrincipalId`, `numeroPrincipal` |
-| `turnos` | `iniciar` | `ambulanciaId`, `integrantes` |
-| `turnos` | `reemplazar_integrantes` | `anteriores`, `nuevos` |
+| `turnos` | `seleccionar_ambulancia` | `ambulanciaId`, `funcion`, `turnoAnteriorId` |
+| `turnos` | `salir_ambulancia` | `ambulanciaId`, `funcion`, `turnoSiguienteId` |
+| `turnos` | `iniciar`, `reemplazar_integrantes` | Solo filas antiguas: ya no se generan desde el 2026-11-01 |
 | `turnos` | `finalizar` | `ambulanciaId` |
 | `asignaciones_servicio` | `despachar` | emergencia (id y número) y ambulancia (id y código) |
 | `asignaciones_servicio` | `avanzar` | `estadoAnterior`, `estadoNuevo`, `emergenciaCerrada`; en la llegada, `distanciaEscenaMetros` y `fueraDeRadio` (el detalle completo de cada paso está en `eventos_asignacion`) |
 | `asignaciones_servicio` | `cancelar` | `estadoAnterior`, `motivo`, `estadoEmergencia` |
+| `asignaciones_servicio` | `definir_destino` | `estadoAsignacion`, `institucionAnteriorId`, `institucionAnterior`, `institucionNuevaId`, `institucionNueva` |
 | `instituciones_salud` | `crear`, `actualizar`, `activar`, `inactivar` | `nombre` / `campos` |
 | `historias_clinicas` | `abrir` | `numeroHistoria`, `asignacionId` |
 | `historias_clinicas` | `consultar` | — (cada lectura del detalle queda registrada) |
@@ -59,6 +61,9 @@ Implementación: `infrastructure/repositories/prisma_auditoria.repository.ts`. D
 | `historias_clinicas` | `registrar_signo_vital`, `registrar_lesion`, `registrar_intervencion`, `eliminar_*` | `registroId` |
 | `historias_clinicas` | `cerrar` | `numeroHistoria`, `hashCierre` |
 | `historias_clinicas` | `anular` | `estadoAnterior`, `motivo` |
+| `usuarios` | `registrar_ciudadano`, `actualizar_contacto` | `verificacionId` / `campos` (sin datos personales) |
+| `verificaciones_identidad` | `consultar`, `decidir`, `reenviar` | `decidir`: `ciudadanoId`, `estadoAnterior`, `estadoNuevo`, `motivo`; `reenviar`: `camposCorregidos`, `ladosReemplazados` |
+| `documentos_identidad` | `consultar` | `ciudadanoId`, `lado` (cada descarga de una foto) |
 
 Los reportes de GPS no se auditan (la tabla `ubicaciones_ambulancias` ya es el registro).
 

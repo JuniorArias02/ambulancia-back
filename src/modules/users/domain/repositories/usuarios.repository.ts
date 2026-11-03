@@ -14,6 +14,8 @@ export interface FiltrosUsuarios {
 export abstract class UsuariosRepositorio {
   abstract buscarPorId(id: string): Promise<Usuario | null>;
   abstract buscarPorCorreo(correo: string): Promise<Usuario | null>;
+  /** `numeroDocumento` ya normalizado. */
+  abstract buscarPorDocumento(numeroDocumento: string): Promise<Usuario | null>;
   abstract existeCorreo(correo: string): Promise<boolean>;
   abstract listar(
     filtros: FiltrosUsuarios,

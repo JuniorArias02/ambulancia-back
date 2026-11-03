@@ -30,6 +30,10 @@ export const ESTADOS_EMERGENCIA = [
 ] as const;
 export type EstadoEmergencia = (typeof ESTADOS_EMERGENCIA)[number];
 
+/** Cómo obtuvo el ciudadano las coordenadas de su reporte. */
+export const ORIGENES_UBICACION = ['gps', 'manual'] as const;
+export type OrigenUbicacion = (typeof ORIGENES_UBICACION)[number];
+
 /** Estados en los que la emergencia sigue abierta. */
 export const ESTADOS_ACTIVOS: readonly EstadoEmergencia[] = [
   'recibida',
@@ -61,6 +65,9 @@ export interface PropiedadesEmergencia {
   estado: EstadoEmergencia;
   emergenciaPrincipalId: string | null;
   recibidaPorId: string | null;
+  /** El ciudadano que la reportó desde la app; `null` en los demás canales. */
+  informanteUsuarioId: string | null;
+  origenUbicacion: OrigenUbicacion | null;
   /** Solo lectura: nombre de quien la registró, para mostrarlo. */
   recibidaPorNombre: string | null;
   recibidaEn: Date;
@@ -68,6 +75,8 @@ export interface PropiedadesEmergencia {
 }
 
 export interface DatosNuevaEmergencia {
+  /** Lo envía la app del ciudadano para que un reintento no duplique el reporte. */
+  id?: string;
   numeroEmergencia: string;
   fuente: FuenteEmergencia;
   informanteNombre?: string | null;
@@ -81,6 +90,8 @@ export interface DatosNuevaEmergencia {
   longitud?: number | null;
   numeroVictimas?: number | null;
   recibidaPorId: string | null;
+  informanteUsuarioId?: string | null;
+  origenUbicacion?: OrigenUbicacion | null;
   recibidaEn: Date;
 }
 
@@ -104,7 +115,7 @@ export class Emergencia {
 
   static crear(datos: DatosNuevaEmergencia): Emergencia {
     const emergencia = new Emergencia({
-      id: crypto.randomUUID(),
+      id: datos.id ?? crypto.randomUUID(),
       numeroEmergencia: datos.numeroEmergencia,
       fuente: datos.fuente,
       informanteNombre: Emergencia.limpiar(datos.informanteNombre),
@@ -120,6 +131,8 @@ export class Emergencia {
       estado: 'recibida',
       emergenciaPrincipalId: null,
       recibidaPorId: datos.recibidaPorId,
+      informanteUsuarioId: datos.informanteUsuarioId ?? null,
+      origenUbicacion: datos.origenUbicacion ?? null,
       recibidaPorNombre: null,
       recibidaEn: datos.recibidaEn,
       cerradaEn: null,
@@ -218,6 +231,12 @@ export class Emergencia {
   }
   get recibidaPorId(): string | null {
     return this.propiedades.recibidaPorId;
+  }
+  get informanteUsuarioId(): string | null {
+    return this.propiedades.informanteUsuarioId;
+  }
+  get origenUbicacion(): OrigenUbicacion | null {
+    return this.propiedades.origenUbicacion;
   }
   get recibidaPorNombre(): string | null {
     return this.propiedades.recibidaPorNombre;

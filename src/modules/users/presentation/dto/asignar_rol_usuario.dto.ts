@@ -1,16 +1,16 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsIn } from 'class-validator';
 import {
-  NOMBRES_ROLES,
+  ROLES_INTERNOS,
   type NombreRol,
 } from '../../../../common/constants/roles.js';
 
 export class AsignarRolUsuarioDto {
   @ApiProperty({
     description: 'Nuevo rol; reemplaza el rol actual',
-    enum: NOMBRES_ROLES,
+    enum: ROLES_INTERNOS,
     example: 'paramedico',
   })
-  @IsIn(NOMBRES_ROLES)
+  @IsIn(ROLES_INTERNOS)
   rol: NombreRol;
 }

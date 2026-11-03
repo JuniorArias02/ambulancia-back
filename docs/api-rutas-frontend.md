@@ -10,7 +10,7 @@
 
 - Es el camino **por calles** desde donde estaba la ambulancia hasta la **emergencia** que atiende, con su distancia y su tiempo estimado.
 - Solo existe mientras el servicio está **`asignada`** o **`en_camino`**. Una ambulancia libre no tiene ruta, y al llegar a la escena (`en_escena`) la ruta deja de mostrarse.
-- El tramo escena → hospital llegará cuando el traslado tenga un hospital de destino.
+- **Desde 2026-11-02 también hay ruta en `trasladando`**, con `tramo: "hacia_destino"`, cuando el conductor eligió hospital. `GET /rutas/activas` y `asignacion.ruta_actualizada` la incluyen. Motivos nuevos: `inicio_traslado` y `cambio_destino`. En `en_escena`, `atendiendo` y al terminar, `GET /asignaciones/{id}/ruta` responde `404`. La central consulta el hospital en `asignacion.institucionDestino`, y no puede cambiarlo.
 
 ### Cuándo se calcula (todo lo hace el backend solo)
 

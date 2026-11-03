@@ -61,7 +61,10 @@ export class RutaRespuestaDto {
   })
   origen: PuntoRutaDto;
 
-  @ApiProperty({ type: PuntoRutaDto, description: 'La emergencia' })
+  @ApiProperty({
+    type: PuntoRutaDto,
+    description: 'La emergencia o el hospital, según el tramo',
+  })
   destino: PuntoRutaDto;
 
   @ApiProperty({ type: LineaGeoJsonDto })

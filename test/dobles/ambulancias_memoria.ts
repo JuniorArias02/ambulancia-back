@@ -55,6 +55,10 @@ export class AmbulanciasMemoria extends AmbulanciasRepositorio {
     return Promise.resolve({ datos, total: datos.length, pagina, limite });
   }
 
+  listarTodas(): Promise<Ambulancia[]> {
+    return Promise.resolve([...this.ambulancias.values()]);
+  }
+
   crear(ambulancia: Ambulancia): Promise<Ambulancia> {
     this.ambulancias.set(ambulancia.id, ambulancia);
     return Promise.resolve(ambulancia);

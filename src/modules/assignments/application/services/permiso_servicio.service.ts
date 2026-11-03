@@ -31,16 +31,17 @@ export class PermisoServicio {
     }
   }
 
-  /** La llegada a la escena la confirma quien maneja, desde la ambulancia. */
+  /** Lo que solo decide quien maneja: confirmar la llegada y elegir el hospital de destino. */
   async exigirConductor(
     asignacion: Asignacion,
     solicitante: Solicitante,
+    accion = 'confirmar la llegada',
   ): Promise<void> {
     if (
       (await this.funcionEnElTurno(asignacion, solicitante)) !== 'conductor'
     ) {
       throw new AccesoDenegadoError(
-        'Solo el conductor de la ambulancia asignada puede confirmar la llegada',
+        `Solo el conductor de la ambulancia asignada puede ${accion}`,
       );
     }
   }

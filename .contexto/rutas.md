@@ -4,7 +4,7 @@
 
 ## Qué hace
 
-Calcula la **ruta por calles** de cada ambulancia hacia la emergencia que atiende (Geoapify Routing, con la misma `GEOAPIFY_API_KEY`). La guarda en `rutas_asignacion` y la avisa por tiempo real. **El frontend solo la dibuja**; no calcula rutas ni llama al proveedor.
+Calcula la **ruta por calles** de cada ambulancia hacia la emergencia que atiende y, durante el traslado, hacia el hospital que eligió el conductor (Geoapify Routing, con la misma `GEOAPIFY_API_KEY`). Ver [ruta-institucion.md](ruta-institucion.md). La guarda en `rutas_asignacion` y la avisa por tiempo real. **El frontend solo la dibuja**; no calcula rutas ni llama al proveedor.
 
 Decisión (2026-10-24): la ruta va en el backend porque así:
 - la clave queda en el servidor;
@@ -16,8 +16,8 @@ Decisión (2026-10-24): la ruta va en el backend porque así:
 
 | Método | Ruta | Roles | Caso de uso |
 | --- | --- | --- | --- |
-| GET | `/rutas/activas` | admin, despachador | `ConsultarRutasActivas`: la ruta vigente de cada servicio `asignada` o `en_camino` |
-| GET | `/asignaciones/{id}/ruta` | admin, despachador; conductor y paramédico **solo de su turno** | `ObtenerRutaAsignacion` (`404` si aún no hay ruta) |
+| GET | `/rutas/activas` | admin, despachador | `ConsultarRutasActivas`: la ruta vigente de cada servicio `asignada`, `en_camino` o `trasladando` |
+| GET | `/asignaciones/{id}/ruta` | admin, despachador; conductor y paramédico **solo de su turno** | `ObtenerRutaAsignacion` (`404` si no hay ruta **vigente**) |
 
 `/rutas/activas` no se puso en `/asignaciones/rutas` para no chocar con `GET /asignaciones/:id`, que valida que el id sea un UUID.
 
@@ -28,21 +28,22 @@ Asignaciones y ubicaciones **no saben que este módulo existe**: el listener se 
 | Evento | Acción |
 | --- | --- |
 | `asignacion.creada` | Calcular con motivo `despacho`, desde la última posición de la ambulancia **solo si tiene ≤ 10 min** (`ANTIGUEDAD_MAXIMA_ORIGEN_MS`) |
-| `ambulancia.ubicacion_actualizada` con servicio y **sin ruta** | Calcular con motivo `sin_ruta` desde esa posición. Si falla, no se reintenta antes de `RUTAS_INTERVALO_RECALCULO_S` (mapa `intentosSinRuta`) |
+| `asignacion.actualizada` en `trasladando`, con hospital y sin ruta vigente | Calcular con motivo `inicio_traslado` o `cambio_destino`, desde la última posición de ≤ 10 min |
+| `ambulancia.ubicacion_actualizada` con servicio y **sin ruta vigente** | Calcular con motivo `sin_ruta` desde esa posición. Si falla, no se reintenta antes de `RUTAS_INTERVALO_RECALCULO_S` (mapa `intentosSinRuta`) |
 | `ambulancia.ubicacion_actualizada` con ruta vigente | Si `estaDesviada` (> `RUTAS_DISTANCIA_DESVIO_M`, 150 m) **y** `admiteRecalculo` (≥ 60 s desde el último cálculo) → recalcular con motivo `desvio` desde esa posición. Si no, nada |
 
 La regla de los 10 minutos nace del caso real del 2026-10-24: la última posición guardada era una prueba en Bogotá y la ambulancia estaba en Cúcuta. Con ese origen se habría trazado una ruta de 550 km.
 
 ## `CalcularRutaAsignacion`
 
-1. Solo si la asignación está `asignada` o `en_camino` (`ESTADOS_CON_RUTA`) y la emergencia tiene coordenadas.
+1. El tramo sale del estado (`tramoDelEstado`): `asignada` y `en_camino` → `hacia_emergencia` (coordenadas de la emergencia); `trasladando` → `hacia_destino` (coordenadas del hospital). Sin tramo o sin coordenadas, no calcula.
 2. Proveedores en orden (`ProveedoresRutas`). Una `FallaProveedorExterno` pasa al siguiente; si ninguno responde, devuelve `null`. **Nunca lanza**, porque lo invocan eventos y no una petición HTTP.
-3. Guarda una fila nueva en `rutas_asignacion` (**historial**: la vigente es la más reciente) y publica `asignacion.ruta_actualizada` en el bus.
-4. Deduplicación por asignación (`ConsultasEnCurso`): el despacho y el primer GPS simultáneos calculan una sola vez.
+3. Vuelve a leer la asignación, descarta el resultado si ya no sirve, guarda una fila nueva en `rutas_asignacion` (**historial**) y publica `asignacion.ruta_actualizada` en el bus. La vigente es la más reciente **si `esVigentePara(asignacion)`**.
+4. Deduplicación por asignación, tramo y destino (`ConsultasEnCurso`): el despacho y el primer GPS simultáneos calculan una sola vez, pero un cálculo hacia otro hospital no absorbe el del destino nuevo.
 
 ## Dominio
 
-- `RutaAsignacion` (`calcular`, `reconstruir`, `llegadaEstimada`, `estaDesviada`, `admiteRecalculo`). Tramo `hacia_emergencia`; motivos `despacho`, `sin_ruta` y `desvio`.
+- `RutaAsignacion` (`calcular`, `reconstruir`, `llegadaEstimada`, `estaDesviada`, `admiteRecalculo`). Tramos `hacia_emergencia` y `hacia_destino`; motivos `despacho`, `sin_ruta`, `desvio`, `inicio_traslado` y `cambio_destino`.
 - `geometria_ruta.ts` → `distanciaPuntoARuta`: distancia perpendicular al segmento más cercano, con proyección equirrectangular local (sin librerías).
 - `proveedor_rutas.ts`: contratos `ProveedorRutas` (`calcular(origen, destino) → { geometria, distanciaMetros, duracionSegundos } | null`) y `ProveedoresRutas`.
 
@@ -74,7 +75,7 @@ Migración `20261024234520_rutas_asignacion`.
 | `asignacion_id` | FK a `asignaciones_servicio` |
 | `tramo`, `motivo` | Ver arriba |
 | `origen_latitud`, `origen_longitud` | Dónde estaba la ambulancia al calcular |
-| `destino_latitud`, `destino_longitud` | La emergencia |
+| `destino_latitud`, `destino_longitud` | La emergencia o el hospital |
 | `geometria` | JSON, `[[lon, lat], …]` |
 | `distancia_metros`, `duracion_segundos` | INT |
 | `proveedor` | Quién la calculó |
@@ -128,6 +129,5 @@ Al final se finalizaron el servicio y el turno de AMB-02.
 
 ## Pendiente
 
-- **Tramo al hospital** (`hacia_destino`): requiere guardar la institución de destino en la asignación o tomarla de la historia clínica.
 - **ETA con tráfico**: Geoapify no usa tráfico en vivo. Si se necesita, agregar Google Routes como proveedor (la arquitectura ya lo soporta).
 - **Selección de la ambulancia más cercana por tiempo** (Route Matrix) para sugerir el despacho.

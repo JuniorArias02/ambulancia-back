@@ -6,6 +6,8 @@ import {
   type EstadoEmergencia,
   FUENTES_EMERGENCIA,
   type FuenteEmergencia,
+  ORIGENES_UBICACION,
+  type OrigenUbicacion,
   PRIORIDADES_EMERGENCIA,
   type PrioridadEmergencia,
   TIPOS_INCIDENTE,
@@ -83,6 +85,23 @@ export class EmergenciaRespuestaDto {
   @ApiPropertyOptional({ type: ReceptorRespuestaDto, nullable: true })
   recibidaPor: ReceptorRespuestaDto | null;
 
+  @ApiPropertyOptional({
+    type: String,
+    format: 'uuid',
+    nullable: true,
+    description:
+      'Ciudadano verificado que la reportó desde la app; null en los demás canales',
+  })
+  informanteUsuarioId: string | null;
+
+  @ApiPropertyOptional({
+    enum: ORIGENES_UBICACION,
+    nullable: true,
+    description:
+      'Reportes de ciudadanos: gps (del celular) o manual (punto marcado en el mapa)',
+  })
+  origenUbicacion: OrigenUbicacion | null;
+
   @ApiProperty()
   recibidaEn: Date;
 
@@ -111,6 +130,8 @@ export class EmergenciaRespuestaDto {
             nombreCompleto: emergencia.recibidaPorNombre,
           }
         : null,
+      informanteUsuarioId: emergencia.informanteUsuarioId,
+      origenUbicacion: emergencia.origenUbicacion,
       recibidaEn: emergencia.recibidaEn,
       cerradaEn: emergencia.cerradaEn,
     };

@@ -1,4 +1,5 @@
 import { ReglaNegocioError } from '../../../../common/exceptions/errores_dominio.js';
+import type { PuntoGeografico } from '../../../../common/utils/geografia.js';
 
 export const ESTADOS_ASIGNACION = [
   'asignada',
@@ -51,6 +52,25 @@ const ESTADOS_CANCELABLES: readonly EstadoAsignacion[] = [
   'en_camino',
 ];
 
+/**
+ * El conductor elige el hospital desde que llega a la escena hasta entregar al
+ * paciente; antes no se sabe si habrá traslado.
+ */
+export const ESTADOS_CON_DESTINO: readonly EstadoAsignacion[] = [
+  'en_escena',
+  'atendiendo',
+  'trasladando',
+];
+
+/** A dónde va la ambulancia. La entrega real de cada paciente queda en su historia clínica. */
+export interface DestinoAsignacion {
+  institucionId: string;
+  nombre: string;
+  direccion: string | null;
+  telefono: string | null;
+  coordenadas: PuntoGeografico | null;
+}
+
 export interface PropiedadesAsignacion {
   id: string;
   emergenciaId: string;
@@ -66,10 +86,14 @@ export interface PropiedadesAsignacion {
   salidaEscenaEn: Date | null;
   llegadaDestinoEn: Date | null;
   finalizadaEn: Date | null;
+  destino: DestinoAsignacion | null;
+  destinoActualizadoPorId: string | null;
+  destinoActualizadoEn: Date | null;
   /** Solo lectura, para mostrar. */
   numeroEmergencia: string | null;
   ambulanciaCodigo: string | null;
   asignadaPorNombre: string | null;
+  destinoActualizadoPorNombre: string | null;
 }
 
 export class Asignacion {
@@ -93,6 +117,10 @@ export class Asignacion {
       salidaEscenaEn: null,
       llegadaDestinoEn: null,
       finalizadaEn: null,
+      destino: null,
+      destinoActualizadoPorId: null,
+      destinoActualizadoEn: null,
+      destinoActualizadoPorNombre: null,
       numeroEmergencia: null,
       ambulanciaCodigo: null,
       asignadaPorNombre: null,
@@ -157,6 +185,48 @@ export class Asignacion {
   }
   get asignadaPorNombre(): string | null {
     return this.propiedades.asignadaPorNombre;
+  }
+
+  get destino(): DestinoAsignacion | null {
+    return this.propiedades.destino;
+  }
+  get destinoActualizadoPorId(): string | null {
+    return this.propiedades.destinoActualizadoPorId;
+  }
+  get destinoActualizadoEn(): Date | null {
+    return this.propiedades.destinoActualizadoEn;
+  }
+  get destinoActualizadoPorNombre(): string | null {
+    return this.propiedades.destinoActualizadoPorNombre;
+  }
+
+  /** Se eligió o cambió el hospital con la ambulancia ya en camino hacia él. */
+  destinoCambioEnTraslado(): boolean {
+    const { destinoActualizadoEn, salidaEscenaEn } = this.propiedades;
+    return (
+      destinoActualizadoEn !== null &&
+      salidaEscenaEn !== null &&
+      destinoActualizadoEn > salidaEscenaEn
+    );
+  }
+
+  exigirDestinoEditable(): void {
+    if (!ESTADOS_CON_DESTINO.includes(this.propiedades.estado)) {
+      throw new ReglaNegocioError(
+        `No se puede definir el destino de un servicio ${this.propiedades.estado}`,
+      );
+    }
+  }
+
+  definirDestino(
+    destino: DestinoAsignacion,
+    usuarioId: string,
+    fecha: Date,
+  ): void {
+    this.exigirDestinoEditable();
+    this.propiedades.destino = destino;
+    this.propiedades.destinoActualizadoPorId = usuarioId;
+    this.propiedades.destinoActualizadoEn = fecha;
   }
 
   estaActiva(): boolean {

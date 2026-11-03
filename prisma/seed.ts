@@ -14,6 +14,8 @@ const DESCRIPCIONES_ROLES: Record<NombreRol, string> = {
     'Recibe las alertas de emergencia y despacha las ambulancias',
   [Roles.PARAMEDICO]: 'Atiende al paciente y diligencia la historia clínica',
   [Roles.CONDUCTOR]: 'Conduce la ambulancia asignada',
+  [Roles.CIUDADANO]:
+    'Reporta emergencias desde la app una vez verificada su identidad',
 };
 
 function variableRequerida(nombre: string): string {

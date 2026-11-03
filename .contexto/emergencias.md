@@ -34,6 +34,10 @@ Filtros de `GET /emergencias`: `busqueda` (número, descripción, dirección, no
 
 Son los mismos valores que documentan los comentarios del modelo `Emergencia` en `schema.prisma`.
 
+## Reportes de ciudadanos (2026-11-02)
+
+Nuevos campos: `informanteUsuarioId` (FK a usuarios) y `origenUbicacion` (`gps` | `manual`), también en `EmergenciaRespuestaDto`. El filtro del repositorio `informanteUsuarioId` lo usa "mis reportes". `RegistrarEmergencia` acepta un `id` de la app y la opción `recibidaPorCentral: false` (sin receptor hasta que un operador la gestione). Se exporta para el módulo `citizens`. Un reporte ciudadano llega con `fuente: 'app'`, `prioridad: null` y `estado: 'recibida'`. Ver [ciudadanos.md](ciudadanos.md).
+
 ## Entidad `Emergencia`
 
 Campos: `id`, `numeroEmergencia`, `fuente`, `informanteNombre`, `informanteTelefono`, `descripcion`, `tipoIncidente`, `prioridad`, `direccion`, `referenciaLugar`, `coordenadas` (`{ latitud, longitud } | null`), `numeroVictimas`, `estado`, `emergenciaPrincipalId`, `recibidaPorId`, `recibidaPorNombre` (solo lectura, viene del join con `usuarios`), `recibidaEn`, `cerradaEn`.

@@ -19,6 +19,7 @@ import { AuditModule } from './modules/audit/audit.module.js';
 import { EmergenciesModule } from './modules/emergencies/emergencies.module.js';
 import { AuthenticationModule } from './modules/authentication/authentication.module.js';
 import { UsersModule } from './modules/users/users.module.js';
+import { CitizensModule } from './modules/citizens/citizens.module.js';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { UsersModule } from './modules/users/users.module.js';
     AssignmentsModule,
     LocationsModule,
     PrehospitalCareModule,
+    CitizensModule,
     GeocodingModule,
     RoutingModule,
     NotificationsModule,

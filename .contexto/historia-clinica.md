@@ -71,6 +71,10 @@ La historia clínica (HC) de cada paciente atendido en una emergencia: una HC po
 - un id reenviado de otra historia → `409`;
 - un valor de catálogo desconocido en la BD se lee como `null`, en lugar de romper la lectura.
 
+## Relación con el destino del servicio
+
+`institucionDestinoId` de la HC es dónde se entregó a cada paciente. Es **independiente** de `asignaciones_servicio.institucion_destino_id`, que dice a dónde va la ambulancia ([ruta-institucion.md](ruta-institucion.md)). Ninguno modifica al otro.
+
 ## Auditoría
 
 Solo identificadores y nombres de campos, **nunca valores clínicos**: `abrir`, `consultar`, `actualizar` (`campos`), `registrar_*` y `eliminar_*` (`registroId`), `cerrar` (`hashCierre`), `anular` (`motivo`).

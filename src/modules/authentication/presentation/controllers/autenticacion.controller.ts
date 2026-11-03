@@ -30,6 +30,7 @@ import { IniciarSesion } from '../../application/use-cases/iniciar_sesion.use-ca
 import { ObtenerPerfil } from '../../application/use-cases/obtener_perfil.use-case.js';
 import { CambiarContrasenaDto } from '../dto/cambiar_contrasena.dto.js';
 import { IniciarSesionDto } from '../dto/iniciar_sesion.dto.js';
+import { IniciarSesionCiudadanoDto } from '../dto/iniciar_sesion_ciudadano.dto.js';
 import { PerfilRespuestaDto } from '../dto/perfil_respuesta.dto.js';
 import { SesionIniciadaRespuestaDto } from '../dto/sesion_iniciada_respuesta.dto.js';
 
@@ -57,6 +58,30 @@ export class AutenticacionController {
   ): Promise<SesionIniciadaRespuestaDto> {
     const sesion = await this.iniciarSesion.ejecutar({
       correo: dto.correo,
+      contrasena: dto.contrasena,
+      direccionIp,
+    });
+    return SesionIniciadaRespuestaDto.desde(sesion);
+  }
+
+  @Post('iniciar-sesion-ciudadano')
+  @Publico()
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Iniciar sesión de un ciudadano con su cédula y contraseña',
+    description:
+      'Solo cuentas de ciudadanos; el personal entra con correo. Misma respuesta que /autenticacion/iniciar-sesion.',
+  })
+  @ApiOkResponse({ type: SesionIniciadaRespuestaDto })
+  @ApiUnauthorizedResponse({ description: 'Credenciales inválidas' })
+  @ApiTooManyRequestsResponse({ description: 'Demasiados intentos' })
+  async iniciarCiudadano(
+    @Body() dto: IniciarSesionCiudadanoDto,
+    @Ip() direccionIp: string,
+  ): Promise<SesionIniciadaRespuestaDto> {
+    const sesion = await this.iniciarSesion.ejecutarConDocumento({
+      numeroDocumento: dto.numeroDocumento,
       contrasena: dto.contrasena,
       direccionIp,
     });

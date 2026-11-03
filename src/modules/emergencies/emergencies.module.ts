@@ -26,8 +26,10 @@ import { EmergenciasController } from './presentation/controllers/emergencias.co
   ],
   // Las asignaciones lo usan para despachar y cerrar emergencias; el tiempo
   // real, para recargar la emergencia y sugerir duplicados.
+  // Los ciudadanos reportan con el mismo registro que usa la central.
   exports: [
     EmergenciasRepositorio,
+    RegistrarEmergencia,
     ObtenerEmergencia,
     BuscarPosiblesDuplicadas,
   ],
