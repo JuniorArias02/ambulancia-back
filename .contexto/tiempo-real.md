@@ -62,6 +62,10 @@ Caso de uso → guarda → audita → PublicadorEventos.publicar({ tipo, ids })
 - `VerificarSesionToken` = `VerificadorTokens` (firma, emisor, vencimiento) + `ValidarSesion`: las mismas reglas que `JwtStrategy`. Devuelve solo `{ usuarioId, rol, expiraEn }`.
 - Sin `TIEMPO_REAL_URL` o sin la clave, la API arranca igual y lo avisa en el log. Si las variables quedan vacías en el `.env`, cuentan como no configuradas.
 
+## Seguimiento para ciudadanos (2026-11-04)
+
+Evento nuevo `seguimiento.actualizado`, solo a `usuario:{informante}`, desde `NotificadorSeguimientoCiudadano`. El servidor `webSocket/` todavía debe aceptar el rol `ciudadano` y el evento: ver `docs/WEBSOCKET_SEGUIMIENTO_CIUDADANO.md` y [ciudadanos.md](ciudadanos.md).
+
 ## Pendiente
 
 - Decidir si la tripulación debe ver `informanteNombre` e `informanteTelefono`. Hoy los recibe igual que en `GET /mi-servicio`; si se quitan, hay que hacerlo en los dos.

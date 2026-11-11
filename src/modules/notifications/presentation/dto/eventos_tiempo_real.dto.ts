@@ -1,3 +1,4 @@
+import type { SeguimientoEmergenciaRespuestaDto } from '../../../citizens/presentation/dto/seguimiento_emergencia_respuesta.dto.js';
 import type { AmbulanciaRespuestaDto } from '../../../ambulances/presentation/dto/ambulancia_respuesta.dto.js';
 import type { TurnoRespuestaDto } from '../../../ambulances/presentation/dto/turno_respuesta.dto.js';
 import type {
@@ -43,6 +44,8 @@ export interface DatosEventosServidor {
   'ambulancia.ubicacion_actualizada': UbicacionTiempoRealDto;
   'turno.actualizado': { turno: TurnoRespuestaDto };
   'mi_servicio.actualizado': MiServicioRespuestaDto;
+  /** Solo a la sala del ciudadano que reportó la emergencia. */
+  'seguimiento.actualizado': { seguimiento: SeguimientoEmergenciaRespuestaDto };
 }
 
 export type EventoServidor = keyof DatosEventosServidor;

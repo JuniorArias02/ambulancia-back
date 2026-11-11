@@ -79,10 +79,89 @@ async function sembrarAdministrador(): Promise<void> {
   console.info(`Administrador inicial creado: ${correo}`);
 }
 
+const NOMBRE_LISTA_CHEQUEO_BASE = 'Lista de chequeo diaria de ambulancia';
+
+/** Revisión básica antes del turno: vehículo primero y luego equipo médico. */
+const PREGUNTAS_CHEQUEO_BASE = [
+  '¿Nivel de aceite del motor?',
+  '¿Nivel de refrigerante y líquido de frenos?',
+  '¿Combustible suficiente (mínimo medio tanque)?',
+  '¿Llantas: presión, estado y repuesto?',
+  '¿Frenos y freno de mano?',
+  '¿Luces delanteras, traseras y direccionales?',
+  '¿Luces de emergencia (balizas) y sirena?',
+  '¿Batería, arranque y tablero sin alertas?',
+  '¿Limpiaparabrisas, espejos y pito?',
+  '¿Cinturones de seguridad (cabina y compartimiento del paciente)?',
+  '¿Camilla principal y sus anclajes?',
+  '¿Oxígeno: cilindros con carga y reguladores?',
+  '¿Desfibrilador (DEA) con batería y electrodos?',
+  '¿Botiquín y medicamentos completos y vigentes?',
+  '¿Extintor cargado y vigente?',
+];
+
+const OPCIONES_CHEQUEO_BASE = [
+  { nombre: 'Bien', valor: 2 },
+  { nombre: 'Regular', valor: 1 },
+  { nombre: 'Estable', valor: 0 },
+];
+
+/**
+ * Crea la lista base si no existe. Solo la activa si no hay otra activa: nunca
+ * le quita el lugar a una lista que ya configuró el administrador.
+ */
+async function sembrarListaChequeo(): Promise<void> {
+  const existente = await prisma.listaChequeo.findFirst({
+    where: { nombre: NOMBRE_LISTA_CHEQUEO_BASE },
+  });
+  if (existente) {
+    console.info('La lista de chequeo base ya existe; no se modifica.');
+    return;
+  }
+
+  const correo = variableRequerida('SEMILLA_ADMIN_CORREO').trim().toLowerCase();
+  const administrador = await prisma.usuario.findUniqueOrThrow({
+    where: { correo },
+    select: { id: true },
+  });
+  const hayActiva =
+    (await prisma.listaChequeo.count({ where: { activa: true } })) > 0;
+
+  await prisma.listaChequeo.create({
+    data: {
+      id: crypto.randomUUID(),
+      nombre: NOMBRE_LISTA_CHEQUEO_BASE,
+      descripcion: 'Revisión básica del vehículo y del equipo antes del turno',
+      activa: !hayActiva,
+      creadaPorId: administrador.id,
+      items: {
+        create: PREGUNTAS_CHEQUEO_BASE.map((pregunta, orden) => ({
+          id: crypto.randomUUID(),
+          pregunta,
+          orden,
+          obligatorio: true,
+          permiteObservacion: true,
+        })),
+      },
+      estados: {
+        create: OPCIONES_CHEQUEO_BASE.map((opcion, orden) => ({
+          id: crypto.randomUUID(),
+          ...opcion,
+          orden,
+        })),
+      },
+    },
+  });
+  console.info(
+    `Lista de chequeo base creada (${PREGUNTAS_CHEQUEO_BASE.length} preguntas, ${hayActiva ? 'inactiva: ya había otra activa' : 'activa'}).`,
+  );
+}
+
 try {
   await sembrarRoles();
   await sembrarTiposAmbulancia();
   await sembrarAdministrador();
+  await sembrarListaChequeo();
 } finally {
   await prisma.$disconnect();
 }

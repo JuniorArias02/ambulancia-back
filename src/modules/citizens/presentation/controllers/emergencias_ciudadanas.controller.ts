@@ -28,6 +28,7 @@ import { Contexto } from '../../../../common/decorators/contexto.decorator.js';
 import { RequiereRoles } from '../../../../common/decorators/requiere_roles.decorator.js';
 import type { ContextoSolicitud } from '../../../../common/types/contexto_solicitud.js';
 import { ConsultarMisEmergencias } from '../../application/use-cases/consultar_mis_emergencias.use-case.js';
+import { ObtenerSeguimientoEmergencia } from '../../application/use-cases/obtener_seguimiento_emergencia.use-case.js';
 import { ObtenerCiudadano } from '../../application/use-cases/obtener_ciudadano.use-case.js';
 import { ReportarEmergenciaCiudadana } from '../../application/use-cases/reportar_emergencia_ciudadana.use-case.js';
 import { ConsultarMisEmergenciasDto } from '../dto/consultar_mis_emergencias.dto.js';
@@ -36,6 +37,7 @@ import {
   ReporteRegistradoRespuestaDto,
   ReportesPaginadosRespuestaDto,
 } from '../dto/reporte_ciudadano_respuesta.dto.js';
+import { SeguimientoEmergenciaRespuestaDto } from '../dto/seguimiento_emergencia_respuesta.dto.js';
 import { ReportarEmergenciaDto } from '../dto/reportar_emergencia.dto.js';
 
 /** No existe ninguna ruta para cambiar prioridad, estado o ambulancia: eso es de la central. */
@@ -50,6 +52,7 @@ export class EmergenciasCiudadanasController {
     private readonly reportarEmergencia: ReportarEmergenciaCiudadana,
     private readonly consultarMisEmergencias: ConsultarMisEmergencias,
     private readonly obtenerCiudadano: ObtenerCiudadano,
+    private readonly obtenerSeguimiento: ObtenerSeguimientoEmergencia,
   ) {}
 
   @Post()
@@ -95,6 +98,27 @@ export class EmergenciasCiudadanasController {
         pagina,
         limite,
       }),
+    );
+  }
+
+  @Get(':id/seguimiento')
+  // La app consulta cada 10 s mientras el mapa está abierto.
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  @ApiOperation({
+    summary: 'Ver en el mapa la ambulancia de uno de mis reportes',
+    description:
+      'Solo mientras la ambulancia va hacia el lugar del reporte; termina cuando llega. Sin placa, tripulación ni hospital.',
+  })
+  @ApiOkResponse({ type: SeguimientoEmergenciaRespuestaDto })
+  @ApiNotFoundResponse({ description: 'No existe o no es suyo' })
+  @ApiTooManyRequestsResponse({ description: 'Más de 30 consultas por minuto' })
+  async seguimiento(
+    @Param('id', ParseUUIDPipe) emergenciaId: string,
+    @Contexto() contexto: ContextoSolicitud,
+  ): Promise<SeguimientoEmergenciaRespuestaDto> {
+    const { id } = await this.obtenerCiudadano.ejecutar(contexto.usuarioId);
+    return SeguimientoEmergenciaRespuestaDto.desde(
+      await this.obtenerSeguimiento.ejecutar(id, emergenciaId),
     );
   }
 

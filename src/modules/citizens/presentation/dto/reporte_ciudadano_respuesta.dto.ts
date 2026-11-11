@@ -9,6 +9,7 @@ import {
   TIPOS_INCIDENTE,
   type TipoIncidente,
 } from '../../../emergencies/domain/entities/emergencia.entity.js';
+import { admiteSeguimiento } from '../../domain/services/seguimiento_ambulancia.js';
 
 class CoordenadasReporteDto {
   @ApiProperty({ example: 7.893906 })
@@ -63,6 +64,12 @@ export class ReporteCiudadanoRespuestaDto {
   })
   unidoAOtroReporte: boolean;
 
+  @ApiProperty({
+    description:
+      'Hay una ambulancia en camino al lugar: mostrar "Ver ambulancia" (GET /ciudadanos/emergencias/{id}/seguimiento)',
+  })
+  seguimientoDisponible: boolean;
+
   @ApiProperty({ description: 'Cuándo se recibió el reporte' })
   recibidaEn: Date;
 
@@ -87,6 +94,7 @@ function camposReporte(emergencia: Emergencia) {
     numeroVictimas: emergencia.numeroVictimas,
     estado: emergencia.estado,
     unidoAOtroReporte: emergencia.esDuplicada(),
+    seguimientoDisponible: admiteSeguimiento(emergencia.estado),
     recibidaEn: emergencia.recibidaEn,
     cerradaEn: emergencia.cerradaEn,
   };

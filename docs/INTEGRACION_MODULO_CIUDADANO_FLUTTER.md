@@ -451,6 +451,8 @@ Es el catálogo del sistema; no hay otros.
 
 ## G. Mis reportes
 
+> **Agregado el 2026-11-04:** cada reporte trae `seguimientoDisponible`. Con `true`, muestre "Ver ambulancia" y use `GET /ciudadanos/emergencias/{id}/seguimiento`. Detalle en [`SEGUIMIENTO_AMBULANCIA_CIUDADANO_FLUTTER.md`](SEGUIMIENTO_AMBULANCIA_CIUDADANO_FLUTTER.md).
+
 ### Lista: `GET /ciudadanos/emergencias`
 
 Rol `ciudadano`. Solo trae los reportes del propio ciudadano, del más reciente al más antiguo.
@@ -506,6 +508,8 @@ La respuesta no trae prioridad, nombres del personal ni datos de otros reportes.
 ---
 
 ## H. WebSocket
+
+> **Actualización 2026-11-04:** la API ya emite `seguimiento.actualizado` a la sala del ciudadano. El servidor WebSocket debe aceptar antes el rol ciudadano (`docs/WEBSOCKET_SEGUIMIENTO_CIUDADANO.md`). Hasta que se confirme, lo de abajo sigue vigente.
 
 **El ciudadano no usa WebSocket en esta versión.** El servidor de tiempo real valida el rol contra su propia lista, que no incluye `ciudadano`. Según su código, rechaza la conexión con un token de ciudadano; no se probó con una conexión real. **No intente conectarse con el rol ciudadano.**
 

@@ -20,6 +20,7 @@ import { EmergenciesModule } from './modules/emergencies/emergencies.module.js';
 import { AuthenticationModule } from './modules/authentication/authentication.module.js';
 import { UsersModule } from './modules/users/users.module.js';
 import { CitizensModule } from './modules/citizens/citizens.module.js';
+import { ChecklistsModule } from './modules/checklists/checklists.module.js';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { CitizensModule } from './modules/citizens/citizens.module.js';
     LocationsModule,
     PrehospitalCareModule,
     CitizensModule,
+    ChecklistsModule,
     GeocodingModule,
     RoutingModule,
     NotificationsModule,

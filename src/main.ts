@@ -38,7 +38,7 @@ async function iniciar(): Promise<void> {
     const documento = SwaggerModule.createDocument(
       app,
       new DocumentBuilder()
-        .setTitle('Ambulancias Galenos API')
+        .setTitle('Ambulancias API')
         .setDescription(
           'API de despacho de ambulancias y atención prehospitalaria',
         )

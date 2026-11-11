@@ -63,6 +63,8 @@ Implementación: `infrastructure/repositories/prisma_auditoria.repository.ts`. D
 | `historias_clinicas` | `anular` | `estadoAnterior`, `motivo` |
 | `usuarios` | `registrar_ciudadano`, `actualizar_contacto` | `verificacionId` / `campos` (sin datos personales) |
 | `verificaciones_identidad` | `consultar`, `decidir`, `reenviar` | `decidir`: `ciudadanoId`, `estadoAnterior`, `estadoNuevo`, `motivo`; `reenviar`: `camposCorregidos`, `ladosReemplazados` |
+| `listas_chequeo` | `crear`, `actualizar`, `activar`, `desactivar`, `agregar_pregunta`, `actualizar_pregunta`, `agregar_opcion`, `actualizar_opcion` | `nombre` y totales / `campos` / `itemId` / `estadoId` |
+| `chequeos_diarios` | `iniciar`, `finalizar` | `ambulanciaId`, `fecha`; al finalizar, `totalRespuestas` y `conObservacion` |
 | `documentos_identidad` | `consultar` | `ciudadanoId`, `lado` (cada descarga de una foto) |
 
 Los reportes de GPS no se auditan (la tabla `ubicaciones_ambulancias` ya es el registro).

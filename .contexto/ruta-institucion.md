@@ -12,7 +12,7 @@
 
 ## Base de datos
 
-Migración `20261102231818_destino_asignacion`, solo agrega columnas opcionales en `asignaciones_servicio`, con clave foránea: `institucion_destino_id`, `destino_actualizado_por_id` y `destino_actualizado_en`. Los servicios existentes quedan en `null`.
+Migración `20261102231818_destino_asignacion` (hoy unida en `20261109000000_inicial`), solo agregaba columnas opcionales en `asignaciones_servicio`, con clave foránea: `institucion_destino_id`, `destino_actualizado_por_id` y `destino_actualizado_en`. Los servicios existentes quedan en `null`.
 
 La columna `rutas_asignacion.tramo` ya existía.
 

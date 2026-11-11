@@ -2,7 +2,9 @@
 
 > Última actualización: 2026-10-24. Índice de esta carpeta:
 > - [00-general.md](00-general.md): este archivo (stack, arquitectura, convenciones, estado)
+> - [ESTADO_PROYECTO.md](ESTADO_PROYECTO.md): resumen de lo hecho, decisiones, errores resueltos y la siguiente tarea
 > - [usuarios.md](usuarios.md): usuarios y roles
+> - [lista-chequeo.md](lista-chequeo.md): lista de chequeo diaria de la ambulancia (administrador configura, conductor diligencia)
 > - [ciudadanos.md](ciudadanos.md): registro de ciudadanos, verificación documental y reportes de emergencia desde la app
 > - [autenticacion.md](autenticacion.md): login, sesiones, JWT, contraseña
 > - [ambulancias.md](ambulancias.md): flota, tipos y estados operativos
@@ -48,6 +50,24 @@ npm run typecheck && npm run lint && npm test
 npm run format
 ```
 
+## Migraciones: una sola desde el 2026-11-09
+
+Las 8 migraciones anteriores (`20261023235103_inicial` … `20261103025936_modulo_ciudadano`) se unieron en **`prisma/migrations/20261109000000_inicial`**, generada desde `schema.prisma`.
+
+- **Comprobado antes de reemplazar:** la BD real no tenía diferencias con el schema (`migrate diff`). La migración nueva, aplicada en una BD vacía, quedó idéntica a la real: 26 tablas, 301 columnas, 87 índices, 44 claves foráneas, mismos motores y collations. Una instalación nueva (`migrate deploy` + `db seed`) crea los 5 roles, los tipos TAB y TAM y el administrador.
+- **Los datos base ya no van en migraciones:** el rol `ciudadano` lo crea el seed (`prisma/seed.ts`), junto con los demás roles, los tipos de ambulancia y el administrador. Ejecute siempre `npm run db:semilla` después de migrar una BD nueva.
+- **Respaldo de la estructura previa:** `prisma/respaldos/estructura_ambulancia_2026-11-09.sql` (solo estructura, sin datos).
+- **Una BD que ya tenía las 8 migraciones** (otro equipo, el contenedor Docker o un servidor) no se recrea: solo se reemplaza el historial. Primero confirme que su estructura está al día (`npx prisma migrate status` con las migraciones viejas, o `npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script` vacío), y luego:
+
+  ```bash
+  mysqldump ... > respaldo.sql                      # respaldo primero
+  mysql ... -e "DELETE FROM _prisma_migrations;"    # en esa BD
+  npx prisma migrate resolve --applied 20261109000000_inicial
+  npx prisma migrate status                          # debe decir: up to date
+  ```
+
+  La BD local de desarrollo (MySQL en `localhost:3306`, la del `.env`) ya está así.
+
 ## Configuración (`main.ts` y `.env`)
 
 - Prefijo global: `api/v1`.
@@ -75,7 +95,7 @@ src/modules/<modulo>/
 └── <modulo>.module.ts   # enlaza contrato → implementación ({ provide: Repo, useClass: PrismaRepo })
 ```
 
-Módulos actuales: `audit`, `users`, `authentication`, `citizens` (ciudadanos), `ambulances` (incluye turnos), `emergencies`, `assignments`, `locations`, `prehospital_care` (historia clínica e instituciones de salud), `geocoding`, `routing`, `notifications`, `notifications` (tiempo real; ver [tiempo-real.md](tiempo-real.md)) (todos registrados en `src/app.module.ts`). Además, `src/common/events/` tiene el bus de eventos de dominio (`EventosModule`, global).
+Módulos actuales: `audit`, `users`, `authentication`, `citizens` (ciudadanos), `checklists` (lista de chequeo), `ambulances` (incluye turnos), `emergencies`, `assignments`, `locations`, `prehospital_care` (historia clínica e instituciones de salud), `geocoding`, `routing`, `notifications`, `notifications` (tiempo real; ver [tiempo-real.md](tiempo-real.md)) (todos registrados en `src/app.module.ts`). Además, `src/common/events/` tiene el bus de eventos de dominio (`EventosModule`, global).
 
 ### Patrones que se repiten
 
@@ -139,7 +159,12 @@ Cuerpo de error: `{ codigoEstado, error, mensaje, ruta, fecha }`.
 | `instrucciones-agente-flutter.md` | Flutter: selección de ambulancia |
 | `RUTA_INSTITUCION_FLUTTER.md` | Flutter: hospital de destino y ruta del traslado |
 | `INTEGRACION_MODULO_CIUDADANO_FLUTTER.md` | Flutter: módulo ciudadano (registro, verificación, mapa, reportes) |
+| `SEGUIMIENTO_AMBULANCIA_CIUDADANO_FLUTTER.md` | Flutter: el ciudadano ve en el mapa la ambulancia de su reporte |
+| `WEBSOCKET_SEGUIMIENTO_CIUDADANO.md` | Servidor WebSocket: aceptar el rol ciudadano y el evento `seguimiento.actualizado` |
 | `ACCESO_CEDULA_CIUDADANO_FLUTTER.md` | Flutter: acceso del ciudadano con cédula (¿existe? → contraseña o registro) |
+| `LISTA_CHEQUEO_FLUTTER.md` | Flutter: lista de chequeo diaria del conductor |
+| `LISTA_CHEQUEO_FRONTEND.md` | Frontend web: configuración e historial de la lista de chequeo |
+| `VERIFICACION_CIUDADANOS_FRONTEND.md` | Frontend web: módulo del administrador para aprobar o rechazar ciudadanos |
 | `instrucciones-agente-frontend.md` | Frontend: quitar la asignación de tripulación |
 | `api-app-movil.md` | App Flutter: login, sesión y pantalla de inicio (`/mi-servicio`) |
 | `api-mapa-ambulancias-frontend.md` | Frontend: mapa de la flota (posiciones, filtros por estado, tiempo real) |

@@ -1,11 +1,15 @@
 import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import type { VariablesEntorno } from '../../config/variables_entorno.js';
+import { AmbulancesModule } from '../ambulances/ambulances.module.js';
+import { AssignmentsModule } from '../assignments/assignments.module.js';
 import { AuditModule } from '../audit/audit.module.js';
+import { RoutingModule } from '../routing/routing.module.js';
 import { EmergenciesModule } from '../emergencies/emergencies.module.js';
 import { GeocodingModule } from '../geocoding/geocoding.module.js';
 import { UsersModule } from '../users/users.module.js';
 import { DocumentosCargados } from './application/services/documentos_cargados.service.js';
+import { ObtenerSeguimientoEmergencia } from './application/use-cases/obtener_seguimiento_emergencia.use-case.js';
 import { ConsultarAccesoCiudadano } from './application/use-cases/consultar_acceso_ciudadano.use-case.js';
 import { ActualizarContactoCiudadano } from './application/use-cases/actualizar_contacto_ciudadano.use-case.js';
 import { ConsultarMisEmergencias } from './application/use-cases/consultar_mis_emergencias.use-case.js';
@@ -28,10 +32,18 @@ import { VerificacionesCiudadanosController } from './presentation/controllers/v
 /**
  * Ciudadanos: registro, verificación documental de identidad y reportes de
  * emergencia. Reutiliza usuarios (hash), emergencias (registro y numeración)
- * y geocodificación; no despacha ambulancias.
+ * geocodificación, asignaciones y rutas (seguimiento); no despacha ambulancias.
  */
 @Module({
-  imports: [AuditModule, UsersModule, EmergenciesModule, GeocodingModule],
+  imports: [
+    AuditModule,
+    UsersModule,
+    EmergenciesModule,
+    GeocodingModule,
+    AssignmentsModule,
+    AmbulancesModule,
+    RoutingModule,
+  ],
   controllers: [
     CiudadanosController,
     EmergenciasCiudadanasController,
@@ -60,6 +72,9 @@ import { VerificacionesCiudadanosController } from './presentation/controllers/v
     ReportarEmergenciaCiudadana,
     ConsultarMisEmergencias,
     ConsultarAccesoCiudadano,
+    ObtenerSeguimientoEmergencia,
   ],
+  // El tiempo real lo usa para avisar al ciudadano dónde va su ambulancia.
+  exports: [ObtenerSeguimientoEmergencia],
 })
 export class CitizensModule {}

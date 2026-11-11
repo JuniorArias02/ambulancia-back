@@ -33,6 +33,7 @@ Mientras el socket está abierto, el servidor revisa la sesión **cada 60 s**. A
 | --- | --- |
 | `administrador`, `despachador` | Todo lo de la central (sala `central`) |
 | `conductor`, `paramedico` | Solo `mi_servicio.actualizado`, con **su propio** servicio (sala `usuario:{id}`) |
+| `ciudadano` | Solo `seguimiento.actualizado`, de **sus propios** reportes (sala `usuario:{id}`). **Nunca** entra a la central |
 
 ## 3. Eventos
 
@@ -70,6 +71,14 @@ Los DTO son **los mismos que devuelve el REST** (ver [`api-emergencias-frontend.
 | `mi_servicio.actualizado` | `MiServicioRespuesta`, **la misma forma que `GET /mi-servicio`** | Le asignan un servicio, cambia su avance o se cancela; cambia la emergencia que atiende (prioridad, dirección…); entra o sale de un turno |
 
 La app **reemplaza** su estado con ese payload. Si sale del turno, llega `{ turno: null, asignacion: null, emergencia: null }`.
+
+### Ciudadano (`ciudadano`)
+
+| Evento | `datos` | Cuándo |
+| --- | --- | --- |
+| `seguimiento.actualizado` | `{ seguimiento: SeguimientoEmergencia }`, el mismo objeto que `GET /ciudadanos/emergencias/{id}/seguimiento` | Al despachar una ambulancia a su reporte; con cada movimiento (máximo uno cada 3 s por ambulancia); con cada cambio de etapa o de ruta. Termina con un último evento `disponible: false` |
+
+Solo le llega al ciudadano que hizo el reporte. Detalle de los campos y del uso en la app: [`SEGUIMIENTO_AMBULANCIA_CIUDADANO_FLUTTER.md`](SEGUIMIENTO_AMBULANCIA_CIUDADANO_FLUTTER.md), sección 4.
 
 ## 4. Reglas para los clientes
 
@@ -165,7 +174,7 @@ Mientras no tenga conexión, la app puede seguir consultando `GET /mi-servicio` 
 ```ts
 type Sala = 'central' | `usuario:${string}`;
 
-interface ConexionEstablecida { usuarioId: string; rol: 'administrador' | 'despachador' | 'paramedico' | 'conductor'; salas: Sala[] }
+interface ConexionEstablecida { usuarioId: string; rol: 'administrador' | 'despachador' | 'paramedico' | 'conductor' | 'ciudadano'; salas: Sala[] }
 interface ErrorTiempoReal { mensaje: string }
 
 interface UbicacionTiempoReal {
@@ -188,6 +197,7 @@ interface DatosEventos {
   'ambulancia.ubicacion_actualizada': UbicacionTiempoReal;
   'turno.actualizado': { turno: TurnoRespuesta };
   'mi_servicio.actualizado': MiServicioRespuesta;
+  'seguimiento.actualizado': { seguimiento: SeguimientoEmergencia };
 }
 ```
 

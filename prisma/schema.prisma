@@ -70,6 +70,8 @@ model Usuario {
   signosVitales              SignoVital[]
   intervenciones             Intervencion[]
   grabaciones                Grabacion[]
+  listasChequeoCreadas       ListaChequeo[]
+  chequeosDiarios            ChequeoDiario[]
 
   @@map("usuarios")
 }
@@ -139,6 +141,7 @@ model Ambulancia {
   historialEstados EstadoAmbulanciaHistorial[]
   asignaciones     AsignacionServicio[]
   ubicaciones      UbicacionAmbulancia[]
+  chequeosDiarios  ChequeoDiario[]
 
   @@map("ambulancias")
 }
@@ -718,4 +721,101 @@ model HistorialVerificacion {
 
   @@index([verificacionId, ocurridoEn])
   @@map("historial_verificaciones")
+}
+
+// ---------------------------------------------------------------------------
+// Lista de chequeo diaria de la ambulancia (diseño oficial: prisma/lista_chequeo.bd)
+// ---------------------------------------------------------------------------
+
+/// Formulario que configura el administrador.
+model ListaChequeo {
+  id            String    @id @default(uuid()) @db.Char(36)
+  nombre        String    @db.VarChar(150)
+  descripcion   String?   @db.VarChar(255)
+  activa        Boolean   @default(true)
+  creadaPorId   String    @map("creada_por_id") @db.Char(36)
+  creadaEn      DateTime  @default(now()) @map("creada_en") @db.DateTime(3)
+  actualizadaEn DateTime? @map("actualizada_en") @db.DateTime(3)
+
+  creadaPor Usuario @relation(fields: [creadaPorId], references: [id])
+
+  estados  EstadoListaChequeo[]
+  items    ItemListaChequeo[]
+  chequeos ChequeoDiario[]
+
+  @@map("listas_chequeo")
+}
+
+/// Opciones de calificación de la lista (ej.: Bien, Regular…).
+model EstadoListaChequeo {
+  id             String  @id @default(uuid()) @db.Char(36)
+  listaChequeoId String  @map("lista_chequeo_id") @db.Char(36)
+  nombre         String  @db.VarChar(60)
+  valor          Int?
+  orden          Int     @default(0)
+  activo         Boolean @default(true)
+
+  listaChequeo ListaChequeo @relation(fields: [listaChequeoId], references: [id])
+
+  respuestas RespuestaChequeo[]
+
+  @@map("estados_lista_chequeo")
+}
+
+/// Pregunta de la lista.
+model ItemListaChequeo {
+  id                 String  @id @default(uuid()) @db.Char(36)
+  listaChequeoId     String  @map("lista_chequeo_id") @db.Char(36)
+  pregunta           String  @db.VarChar(500)
+  orden              Int     @default(0)
+  obligatorio        Boolean @default(true)
+  permiteObservacion Boolean @default(true) @map("permite_observacion")
+  activo             Boolean @default(true)
+
+  listaChequeo ListaChequeo @relation(fields: [listaChequeoId], references: [id])
+
+  respuestas RespuestaChequeo[]
+
+  @@map("items_lista_chequeo")
+}
+
+/// Un formulario diligenciado por un conductor, para una ambulancia, en un día.
+model ChequeoDiario {
+  id             String    @id @default(uuid()) @db.Char(36)
+  listaChequeoId String    @map("lista_chequeo_id") @db.Char(36)
+  conductorId    String    @map("conductor_id") @db.Char(36)
+  ambulanciaId   String    @map("ambulancia_id") @db.Char(36)
+  /// Día de calendario (hora de Colombia)
+  fecha          DateTime  @db.Date
+  iniciadoEn     DateTime? @map("iniciado_en") @db.DateTime(3)
+  finalizadoEn   DateTime? @map("finalizado_en") @db.DateTime(3)
+  /// borrador, finalizado
+  estado         String    @default("borrador") @db.VarChar(30)
+
+  listaChequeo ListaChequeo @relation(fields: [listaChequeoId], references: [id])
+  conductor    Usuario      @relation(fields: [conductorId], references: [id])
+  ambulancia   Ambulancia   @relation(fields: [ambulanciaId], references: [id])
+
+  respuestas RespuestaChequeo[]
+
+  @@unique([listaChequeoId, conductorId, ambulanciaId, fecha], map: "uk_chequeo_diario")
+  @@map("chequeos_diarios")
+}
+
+/// Calificación de una pregunta dentro de un chequeo.
+model RespuestaChequeo {
+  id               String   @id @default(uuid()) @db.Char(36)
+  chequeoId        String   @map("chequeo_id") @db.Char(36)
+  itemId           String   @map("item_id") @db.Char(36)
+  estadoId         String   @map("estado_id") @db.Char(36)
+  tieneObservacion Boolean  @default(false) @map("tiene_observacion")
+  observacion      String?  @db.VarChar(1000)
+  respondidoEn     DateTime @default(now()) @map("respondido_en") @db.DateTime(3)
+
+  chequeo ChequeoDiario      @relation(fields: [chequeoId], references: [id])
+  item    ItemListaChequeo   @relation(fields: [itemId], references: [id])
+  estado  EstadoListaChequeo @relation(fields: [estadoId], references: [id])
+
+  @@unique([chequeoId, itemId], map: "uk_respuesta_item")
+  @@map("respuestas_chequeo")
 }
