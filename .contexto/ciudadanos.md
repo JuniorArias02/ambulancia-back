@@ -57,7 +57,7 @@ Migración `20261103025936_modulo_ciudadano` (hoy unida en `20261109000000_inici
 | POST | `/verificaciones-ciudadanos/{usuarioId}/decision` | administrador | `DecidirVerificacion` |
 | POST | `/geocodificacion/inversa` | **+ ciudadano** | Ya existía |
 
-El login es el de siempre (`POST /autenticacion/iniciar-sesion`), que devuelve `rol: "ciudadano"`.
+El ciudadano entra **solo con su cédula** (`POST /autenticacion/iniciar-sesion-ciudadano`), que devuelve `rol: "ciudadano"`. Desde el 2026-11-12, el login con correo (`/autenticacion/iniciar-sesion`) es solo para el personal y rechaza a los ciudadanos con `401`.
 
 ## Acceso con cédula (2026-11-02)
 

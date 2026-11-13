@@ -10,8 +10,8 @@ Inicio y cierre de sesión, perfil del usuario actual y cambio de contraseña pr
 
 | Método | Ruta | Acceso | Caso de uso | Respuesta |
 | --- | --- | --- | --- | --- |
-| POST | `/autenticacion/iniciar-sesion-ciudadano` | pública, 5 intentos/min por IP | `IniciarSesion.ejecutarConDocumento` | Igual que el login con correo. **Solo ciudadanos** (el documento de otro rol cuenta como inexistente: `401`, motivo `usuario_inexistente`). El documento se normaliza con `common/utils/documento_identidad.ts` (2026-11-02) |
-| POST | `/autenticacion/iniciar-sesion` | pública (`@Publico()`), 5 intentos/min por IP | `IniciarSesion` | `200` `{ tokenAcceso, tipoToken: "Bearer", expiraEn, usuario }` |
+| POST | `/autenticacion/iniciar-sesion-ciudadano` | pública, 5 intentos/min por IP | `IniciarSesion.ejecutarConDocumento` | Igual que el login con correo. **Solo ciudadanos**: el documento de otro rol recibe `401` y la auditoría registra el motivo `acceso_no_corresponde_al_rol`. El documento se normaliza con `common/utils/documento_identidad.ts` (2026-11-02) |
+| POST | `/autenticacion/iniciar-sesion` | pública (`@Publico()`), 5 intentos/min por IP | `IniciarSesion.ejecutar` | `200` `{ tokenAcceso, tipoToken: "Bearer", expiraEn, usuario }`. **Solo personal** (desde 2026-11-12): un ciudadano recibe el mismo `401` genérico, aunque la contraseña sea correcta, y la auditoría registra `acceso_no_corresponde_al_rol` |
 | GET | `/autenticacion/perfil` | cualquier rol | `ObtenerPerfil` | `200` usuario actual |
 | POST | `/autenticacion/cerrar-sesion` | cualquier rol | `CerrarSesion` | `204`, revoca la sesión actual |
 | PATCH | `/autenticacion/contrasena` | cualquier rol, 5 intentos/min | `CambiarContrasena` | `204`, revoca **todas** las sesiones |
@@ -67,3 +67,17 @@ Repositorio `SesionesRepositorio`: `guardar`, `buscarPorId`, `revocar`, `revocar
 ## Pruebas
 
 `iniciar_sesion.use-case.spec.ts` y `validar_sesion.use-case.spec.ts`, con `SesionesMemoria`, `EmisorTokensFalso` y `HashFalso` de `test/dobles/repositorios_memoria.ts`.
+
+## Un acceso por público (2026-11-12)
+
+La regla vive en el caso de uso `IniciarSesion`: cada acceso recibe un predicado `admitido` (`esPersonal` para el correo, `esCiudadano` para la cédula).
+
+- **Con la contraseña correcta pero el acceso equivocado** se responde lo mismo que con una contraseña incorrecta (`401 Credenciales inválidas`). Así la respuesta no revela qué cuentas existen ni de qué rol son.
+- **El tiempo de respuesta tampoco lo revela:** siempre se verifica el hash.
+- **En la auditoría**, `inicio_sesion_fallido` lleva uno de estos motivos:
+  - `usuario_inexistente`
+  - `contrasena_invalida`
+  - `acceso_no_corresponde_al_rol`
+  - `usuario_<estado>`
+- **Motivo del cambio:** un ciudadano podía entrar al login del personal de la app con su correo y terminaba en la vista ciudadana.
+

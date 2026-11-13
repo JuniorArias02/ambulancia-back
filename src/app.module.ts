@@ -21,6 +21,7 @@ import { AuthenticationModule } from './modules/authentication/authentication.mo
 import { UsersModule } from './modules/users/users.module.js';
 import { CitizensModule } from './modules/citizens/citizens.module.js';
 import { ChecklistsModule } from './modules/checklists/checklists.module.js';
+import { InventoryModule } from './modules/inventory/inventory.module.js';
 
 @Module({
   imports: [
@@ -42,6 +43,7 @@ import { ChecklistsModule } from './modules/checklists/checklists.module.js';
     PrehospitalCareModule,
     CitizensModule,
     ChecklistsModule,
+    InventoryModule,
     GeocodingModule,
     RoutingModule,
     NotificationsModule,

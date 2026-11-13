@@ -461,7 +461,7 @@ Sin turno, la respuesta es `{ "turno": null, "asignacion": null, "emergencia": n
 
 | Método | Ruta | Uso en la app |
 | --- | --- | --- |
-| POST | `/autenticacion/iniciar-sesion` | Login (filtrar por rol en la app) |
+| POST | `/autenticacion/iniciar-sesion` | Login del **personal**. Los ciudadanos reciben `401`: usan `/autenticacion/iniciar-sesion-ciudadano` |
 | GET | `/autenticacion/perfil` | Validar la sesión guardada al abrir |
 | POST | `/autenticacion/cerrar-sesion` | Cerrar sesión |
 | GET | `/mi-servicio` | Pantalla de inicio: turno, servicio asignado y emergencia en el mapa |

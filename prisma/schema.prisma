@@ -53,25 +53,30 @@ model Usuario {
 
   rol Rol @relation(fields: [rolId], references: [id])
 
-  sesiones                   Sesion[]
-  eventosAuditoria           AuditoriaEvento[]
-  turnos                     TurnoIntegrante[]
-  estadosAmbulanciaCambiados EstadoAmbulanciaHistorial[]
-  emergenciasRecibidas       Emergencia[]                @relation("EmergenciaRecibidaPor")
-  asignacionesRealizadas     AsignacionServicio[]        @relation("AsignacionAsignadaPor")
-  destinosActualizados       AsignacionServicio[]        @relation("AsignacionDestinoActualizadoPor")
-  eventosAsignacion          EventoAsignacion[]
-  verificacionIdentidad      VerificacionIdentidad?      @relation("VerificacionDelCiudadano")
-  verificacionesRevisadas    VerificacionIdentidad[]     @relation("VerificacionRevisadaPor")
-  historialVerificaciones    HistorialVerificacion[]
-  emergenciasReportadas      Emergencia[]                @relation("EmergenciaInformante")
-  historiasCreadas           HistoriaClinica[]           @relation("HistoriaCreadaPor")
-  historiasCerradas          HistoriaClinica[]           @relation("HistoriaCerradaPor")
-  signosVitales              SignoVital[]
-  intervenciones             Intervencion[]
-  grabaciones                Grabacion[]
-  listasChequeoCreadas       ListaChequeo[]
-  chequeosDiarios            ChequeoDiario[]
+  sesiones                          Sesion[]
+  eventosAuditoria                  AuditoriaEvento[]
+  turnos                            TurnoIntegrante[]
+  estadosAmbulanciaCambiados        EstadoAmbulanciaHistorial[]
+  emergenciasRecibidas              Emergencia[]                @relation("EmergenciaRecibidaPor")
+  asignacionesRealizadas            AsignacionServicio[]        @relation("AsignacionAsignadaPor")
+  destinosActualizados              AsignacionServicio[]        @relation("AsignacionDestinoActualizadoPor")
+  eventosAsignacion                 EventoAsignacion[]
+  verificacionIdentidad             VerificacionIdentidad?      @relation("VerificacionDelCiudadano")
+  verificacionesRevisadas           VerificacionIdentidad[]     @relation("VerificacionRevisadaPor")
+  historialVerificaciones           HistorialVerificacion[]
+  emergenciasReportadas             Emergencia[]                @relation("EmergenciaInformante")
+  historiasCreadas                  HistoriaClinica[]           @relation("HistoriaCreadaPor")
+  historiasCerradas                 HistoriaClinica[]           @relation("HistoriaCerradaPor")
+  signosVitales                     SignoVital[]
+  intervenciones                    Intervencion[]
+  grabaciones                       Grabacion[]
+  listasChequeoCreadas              ListaChequeo[]
+  chequeosDiarios                   ChequeoDiario[]
+  bodegasResponsable                Bodega[]
+  movimientosInventario             MovimientoInventario[]
+  controlesAlmacenamiento           ControlAlmacenamiento[]
+  verificacionesInventario          VerificacionInventario[]    @relation("VerificacionInventarioResponsable")
+  verificacionesInventarioRevisadas VerificacionInventario[]    @relation("VerificacionInventarioRevisadaPor")
 
   @@map("usuarios")
 }
@@ -118,7 +123,8 @@ model TipoAmbulancia {
   nombre      String  @unique @db.VarChar(80)
   descripcion String? @db.VarChar(255)
 
-  ambulancias Ambulancia[]
+  ambulancias      Ambulancia[]
+  perfilesDotacion PerfilDotacion[]
 
   @@map("tipos_ambulancia")
 }
@@ -137,11 +143,12 @@ model Ambulancia {
 
   tipoAmbulancia TipoAmbulancia @relation(fields: [tipoAmbulanciaId], references: [id])
 
-  turnos           Turno[]
-  historialEstados EstadoAmbulanciaHistorial[]
-  asignaciones     AsignacionServicio[]
-  ubicaciones      UbicacionAmbulancia[]
-  chequeosDiarios  ChequeoDiario[]
+  turnos              Turno[]
+  historialEstados    EstadoAmbulanciaHistorial[]
+  asignaciones        AsignacionServicio[]
+  ubicaciones         UbicacionAmbulancia[]
+  chequeosDiarios     ChequeoDiario[]
+  ubicacionInventario UbicacionInventario?
 
   @@map("ambulancias")
 }
@@ -155,8 +162,9 @@ model Turno {
 
   ambulancia Ambulancia @relation(fields: [ambulanciaId], references: [id])
 
-  integrantes  TurnoIntegrante[]
-  asignaciones AsignacionServicio[]
+  integrantes              TurnoIntegrante[]
+  asignaciones             AsignacionServicio[]
+  verificacionesInventario VerificacionInventario[]
 
   @@map("turnos")
 }
@@ -263,10 +271,11 @@ model AsignacionServicio {
   institucionDestino    InstitucionSalud? @relation(fields: [institucionDestinoId], references: [id])
   destinoActualizadoPor Usuario?          @relation("AsignacionDestinoActualizadoPor", fields: [destinoActualizadoPorId], references: [id])
 
-  ubicaciones       UbicacionAmbulancia[]
-  historiasClinicas HistoriaClinica[]
-  rutas             RutaAsignacion[]
-  eventos           EventoAsignacion[]
+  ubicaciones           UbicacionAmbulancia[]
+  historiasClinicas     HistoriaClinica[]
+  rutas                 RutaAsignacion[]
+  eventos               EventoAsignacion[]
+  movimientosInventario MovimientoInventario[]
 
   @@index([emergenciaId])
   @@index([ambulanciaId, estado])
@@ -818,4 +827,370 @@ model RespuestaChequeo {
 
   @@unique([chequeoId, itemId], map: "uk_respuesta_item")
   @@map("respuestas_chequeo")
+}
+
+// ==========================================
+// 7. INVENTARIO DE AMBULANCIAS (diseño oficial: docs/bd-inventario.md, prefijo inv_)
+// ==========================================
+
+/// Catálogo general: medicamentos, dispositivos, insumos, equipos, oxígeno…
+model Insumo {
+  id                        String   @id @default(uuid()) @db.Char(36)
+  codigo                    String   @unique @db.VarChar(50)
+  nombre                    String   @db.VarChar(150)
+  descripcion               String?  @db.Text
+  /// medicamento, dispositivo_medico, insumo_asistencial, equipo_biomedico, oxigeno_medicinal, otro
+  tipo                      String   @db.VarChar(40)
+  categoria                 String?  @db.VarChar(100)
+  unidadMedida              String   @map("unidad_medida") @db.VarChar(30)
+  marca                     String?  @db.VarChar(100)
+  fabricante                String?  @db.VarChar(150)
+  requiereLote              Boolean  @default(true) @map("requiere_lote")
+  requiereVencimiento       Boolean  @default(false) @map("requiere_vencimiento")
+  requiereRegistroSanitario Boolean  @default(false) @map("requiere_registro_sanitario")
+  requiereSerie             Boolean  @default(false) @map("requiere_serie")
+  esControlEspecial         Boolean  @default(false) @map("es_control_especial")
+  stockMinimo               Decimal  @default(0) @map("stock_minimo") @db.Decimal(12, 3)
+  activo                    Boolean  @default(true)
+  creadoEn                  DateTime @default(now()) @map("creado_en") @db.DateTime(3)
+  actualizadoEn             DateTime @updatedAt @map("actualizado_en") @db.DateTime(3)
+
+  registrosSanitarios  RegistroSanitario[]
+  lotes                Lote[]
+  equipos              Equipo[]
+  existencias          Existencia[]
+  detallesMovimiento   DetalleMovimiento[]
+  detallesPerfil       DetallePerfilDotacion[]
+  detallesVerificacion DetalleVerificacion[]
+
+  @@index([tipo, activo])
+  @@map("inv_insumos")
+}
+
+model RegistroSanitario {
+  id               String    @id @default(uuid()) @db.Char(36)
+  insumoId         String    @map("insumo_id") @db.Char(36)
+  numeroRegistro   String    @map("numero_registro") @db.VarChar(100)
+  /// registro_sanitario, permiso_comercializacion, notificacion_sanitaria, otro
+  tipoRegistro     String    @map("tipo_registro") @db.VarChar(50)
+  fechaExpedicion  DateTime? @map("fecha_expedicion") @db.Date
+  fechaVencimiento DateTime? @map("fecha_vencimiento") @db.Date
+  titular          String?   @db.VarChar(150)
+  documentoUrl     String?   @map("documento_url") @db.VarChar(500)
+  /// vigente, vencido, suspendido, cancelado
+  estado           String    @default("vigente") @db.VarChar(30)
+  creadoEn         DateTime  @default(now()) @map("creado_en") @db.DateTime(3)
+  actualizadoEn    DateTime  @updatedAt @map("actualizado_en") @db.DateTime(3)
+
+  insumo Insumo @relation(fields: [insumoId], references: [id])
+
+  lotes   Lote[]
+  equipos Equipo[]
+
+  @@unique([insumoId, numeroRegistro])
+  @@index([estado, fechaVencimiento])
+  @@map("inv_registros_sanitarios")
+}
+
+model Bodega {
+  id            String   @id @default(uuid()) @db.Char(36)
+  codigo        String   @unique @db.VarChar(50)
+  nombre        String   @db.VarChar(150)
+  /// Dirección o referencia física
+  ubicacion     String?  @db.VarChar(250)
+  responsableId String?  @map("responsable_id") @db.Char(36)
+  activa        Boolean  @default(true)
+  creadaEn      DateTime @default(now()) @map("creada_en") @db.DateTime(3)
+  actualizadaEn DateTime @updatedAt @map("actualizada_en") @db.DateTime(3)
+
+  responsable Usuario? @relation(fields: [responsableId], references: [id])
+
+  ubicacionInventario UbicacionInventario?
+
+  @@map("inv_bodegas")
+}
+
+/// Dónde está el inventario: una bodega o una ambulancia (nunca las dos; CHECK en la migración).
+model UbicacionInventario {
+  id            String   @id @default(uuid()) @db.Char(36)
+  /// bodega, ambulancia
+  tipo          String   @db.VarChar(30)
+  bodegaId      String?  @unique @map("bodega_id") @db.Char(36)
+  ambulanciaId  String?  @unique @map("ambulancia_id") @db.Char(36)
+  activa        Boolean  @default(true)
+  creadaEn      DateTime @default(now()) @map("creada_en") @db.DateTime(3)
+  actualizadaEn DateTime @updatedAt @map("actualizada_en") @db.DateTime(3)
+
+  bodega     Bodega?     @relation(fields: [bodegaId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  ambulancia Ambulancia? @relation(fields: [ambulanciaId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+
+  existencias             Existencia[]
+  movimientosOrigen       MovimientoInventario[]   @relation("MovimientoOrigen")
+  movimientosDestino      MovimientoInventario[]   @relation("MovimientoDestino")
+  controlesAlmacenamiento ControlAlmacenamiento[]
+  verificaciones          VerificacionInventario[]
+
+  @@map("inv_ubicaciones")
+}
+
+model Lote {
+  id                  String    @id @default(uuid()) @db.Char(36)
+  insumoId            String    @map("insumo_id") @db.Char(36)
+  registroSanitarioId String?   @map("registro_sanitario_id") @db.Char(36)
+  numeroLote          String    @map("numero_lote") @db.VarChar(100)
+  fechaFabricacion    DateTime? @map("fecha_fabricacion") @db.Date
+  fechaVencimiento    DateTime? @map("fecha_vencimiento") @db.Date
+  fabricante          String?   @db.VarChar(150)
+  proveedor           String?   @db.VarChar(150)
+  recibidoEn          DateTime? @map("recibido_en") @db.DateTime(3)
+  documentoSoporte    String?   @map("documento_soporte") @db.VarChar(500)
+  observaciones       String?   @db.Text
+  creadoEn            DateTime  @default(now()) @map("creado_en") @db.DateTime(3)
+
+  insumo            Insumo             @relation(fields: [insumoId], references: [id])
+  registroSanitario RegistroSanitario? @relation(fields: [registroSanitarioId], references: [id])
+
+  existencias          Existencia[]
+  detallesMovimiento   DetalleMovimiento[]
+  detallesVerificacion DetalleVerificacion[]
+
+  @@unique([insumoId, numeroLote])
+  @@index([fechaVencimiento])
+  @@map("inv_lotes")
+}
+
+/// Equipo biomédico individual, seguido por número de serie.
+model Equipo {
+  id                        String    @id @default(uuid()) @db.Char(36)
+  insumoId                  String    @map("insumo_id") @db.Char(36)
+  registroSanitarioId       String?   @map("registro_sanitario_id") @db.Char(36)
+  numeroSerie               String    @unique @map("numero_serie") @db.VarChar(100)
+  marca                     String?   @db.VarChar(100)
+  modelo                    String?   @db.VarChar(100)
+  fechaAdquisicion          DateTime? @map("fecha_adquisicion") @db.Date
+  /// operativo, mantenimiento, fuera_servicio, baja
+  estado                    String    @default("operativo") @db.VarChar(40)
+  fechaUltimoMantenimiento  DateTime? @map("fecha_ultimo_mantenimiento") @db.Date
+  fechaProximoMantenimiento DateTime? @map("fecha_proximo_mantenimiento") @db.Date
+  observaciones             String?   @db.Text
+  creadoEn                  DateTime  @default(now()) @map("creado_en") @db.DateTime(3)
+  actualizadoEn             DateTime  @updatedAt @map("actualizado_en") @db.DateTime(3)
+
+  insumo            Insumo             @relation(fields: [insumoId], references: [id])
+  registroSanitario RegistroSanitario? @relation(fields: [registroSanitarioId], references: [id])
+
+  existencias          Existencia[]
+  detallesMovimiento   DetalleMovimiento[]
+  mantenimientos       Mantenimiento[]
+  detallesVerificacion DetalleVerificacion[]
+
+  @@index([estado, fechaProximoMantenimiento])
+  @@map("inv_equipos")
+}
+
+/// Cantidad de un insumo (o lote, o equipo) en una ubicación. Solo la cambian los movimientos confirmados.
+model Existencia {
+  id            String   @id @default(uuid()) @db.Char(36)
+  ubicacionId   String   @map("ubicacion_id") @db.Char(36)
+  insumoId      String   @map("insumo_id") @db.Char(36)
+  loteId        String?  @map("lote_id") @db.Char(36)
+  equipoId      String?  @map("equipo_id") @db.Char(36)
+  /// insumo:<id>, lote:<id> o equipo:<id>
+  claveControl  String   @map("clave_control") @db.VarChar(120)
+  cantidad      Decimal  @default(0) @db.Decimal(12, 3)
+  actualizadaEn DateTime @updatedAt @map("actualizada_en") @db.DateTime(3)
+
+  ubicacion UbicacionInventario @relation(fields: [ubicacionId], references: [id])
+  insumo    Insumo              @relation(fields: [insumoId], references: [id])
+  lote      Lote?               @relation(fields: [loteId], references: [id], onDelete: Restrict)
+  equipo    Equipo?             @relation(fields: [equipoId], references: [id], onDelete: Restrict)
+
+  @@unique([ubicacionId, claveControl])
+  @@index([insumoId, ubicacionId])
+  @@map("inv_existencias")
+}
+
+model MovimientoInventario {
+  id                  String   @id @default(uuid()) @db.Char(36)
+  codigo              String   @unique @db.VarChar(50)
+  /// entrada, transferencia, consumo, devolucion, ajuste, baja
+  tipo                String   @db.VarChar(30)
+  /// borrador, confirmado, anulado
+  estado              String   @default("borrador") @db.VarChar(20)
+  origenUbicacionId   String?  @map("origen_ubicacion_id") @db.Char(36)
+  destinoUbicacionId  String?  @map("destino_ubicacion_id") @db.Char(36)
+  asignacionId        String?  @map("asignacion_id") @db.Char(36)
+  usuarioId           String   @map("usuario_id") @db.Char(36)
+  motivo              String?  @db.VarChar(150)
+  observaciones       String?  @db.Text
+  documentoReferencia String?  @map("documento_referencia") @db.VarChar(150)
+  realizadoEn         DateTime @map("realizado_en") @db.DateTime(3)
+  creadoEn            DateTime @default(now()) @map("creado_en") @db.DateTime(3)
+  actualizadoEn       DateTime @updatedAt @map("actualizado_en") @db.DateTime(3)
+
+  origen     UbicacionInventario? @relation("MovimientoOrigen", fields: [origenUbicacionId], references: [id], onDelete: Restrict)
+  destino    UbicacionInventario? @relation("MovimientoDestino", fields: [destinoUbicacionId], references: [id], onDelete: Restrict)
+  asignacion AsignacionServicio?  @relation(fields: [asignacionId], references: [id])
+  usuario    Usuario              @relation(fields: [usuarioId], references: [id])
+
+  detalles DetalleMovimiento[]
+
+  @@index([tipo, estado, realizadoEn])
+  @@index([asignacionId])
+  @@map("inv_movimientos")
+}
+
+model DetalleMovimiento {
+  id            String  @id @default(uuid()) @db.Char(36)
+  movimientoId  String  @map("movimiento_id") @db.Char(36)
+  insumoId      String  @map("insumo_id") @db.Char(36)
+  loteId        String? @map("lote_id") @db.Char(36)
+  equipoId      String? @map("equipo_id") @db.Char(36)
+  cantidad      Decimal @db.Decimal(12, 3)
+  observaciones String? @db.Text
+
+  movimiento MovimientoInventario @relation(fields: [movimientoId], references: [id])
+  insumo     Insumo               @relation(fields: [insumoId], references: [id])
+  lote       Lote?                @relation(fields: [loteId], references: [id], onDelete: Restrict)
+  equipo     Equipo?              @relation(fields: [equipoId], references: [id], onDelete: Restrict)
+
+  @@index([movimientoId])
+  @@map("inv_movimiento_detalles")
+}
+
+/// Temperatura y humedad de una ubicación (cadena de frío, bodegas).
+model ControlAlmacenamiento {
+  id            String   @id @default(uuid()) @db.Char(36)
+  ubicacionId   String   @map("ubicacion_id") @db.Char(36)
+  usuarioId     String   @map("usuario_id") @db.Char(36)
+  temperatura   Decimal? @db.Decimal(6, 2)
+  humedad       Decimal? @db.Decimal(6, 2)
+  registradoEn  DateTime @map("registrado_en") @db.DateTime(3)
+  observaciones String?  @db.Text
+  creadoEn      DateTime @default(now()) @map("creado_en") @db.DateTime(3)
+
+  ubicacion UbicacionInventario @relation(fields: [ubicacionId], references: [id])
+  usuario   Usuario             @relation(fields: [usuarioId], references: [id])
+
+  @@index([ubicacionId, registradoEn])
+  @@map("inv_controles_almacenamiento")
+}
+
+model Mantenimiento {
+  id                 String    @id @default(uuid()) @db.Char(36)
+  equipoId           String    @map("equipo_id") @db.Char(36)
+  /// preventivo, correctivo, calibracion
+  tipo               String    @db.VarChar(30)
+  fechaMantenimiento DateTime  @map("fecha_mantenimiento") @db.Date
+  fechaProximo       DateTime? @map("fecha_proximo") @db.Date
+  responsable        String?   @db.VarChar(150)
+  proveedor          String?   @db.VarChar(150)
+  documentoSoporte   String?   @map("documento_soporte") @db.VarChar(500)
+  resultado          String?   @db.VarChar(50)
+  observaciones      String?   @db.Text
+  creadoEn           DateTime  @default(now()) @map("creado_en") @db.DateTime(3)
+
+  equipo Equipo @relation(fields: [equipoId], references: [id])
+
+  @@index([equipoId, fechaMantenimiento])
+  @@map("inv_mantenimientos")
+}
+
+/// Dotación que debe llevar un tipo de ambulancia. Se versiona.
+model PerfilDotacion {
+  id               String    @id @default(uuid()) @db.Char(36)
+  tipoAmbulanciaId String    @map("tipo_ambulancia_id") @db.Char(36)
+  codigo           String    @db.VarChar(50)
+  nombre           String    @db.VarChar(150)
+  version          Int       @default(1)
+  descripcion      String?   @db.Text
+  vigenteDesde     DateTime? @map("vigente_desde") @db.Date
+  vigenteHasta     DateTime? @map("vigente_hasta") @db.Date
+  activo           Boolean   @default(true)
+  creadoEn         DateTime  @default(now()) @map("creado_en") @db.DateTime(3)
+  actualizadoEn    DateTime  @updatedAt @map("actualizado_en") @db.DateTime(3)
+
+  tipoAmbulancia TipoAmbulancia @relation(fields: [tipoAmbulanciaId], references: [id])
+
+  detalles DetallePerfilDotacion[]
+
+  @@unique([tipoAmbulanciaId, codigo, version])
+  @@map("inv_perfiles_dotacion")
+}
+
+model DetallePerfilDotacion {
+  id                String   @id @default(uuid()) @db.Char(36)
+  perfilDotacionId  String   @map("perfil_dotacion_id") @db.Char(36)
+  insumoId          String   @map("insumo_id") @db.Char(36)
+  cantidadRequerida Decimal  @map("cantidad_requerida") @db.Decimal(12, 3)
+  cantidadMinima    Decimal? @map("cantidad_minima") @db.Decimal(12, 3)
+  obligatorio       Boolean  @default(true)
+  observaciones     String?  @db.Text
+
+  perfilDotacion PerfilDotacion @relation(fields: [perfilDotacionId], references: [id])
+  insumo         Insumo         @relation(fields: [insumoId], references: [id])
+
+  detallesVerificacion DetalleVerificacion[]
+
+  @@unique([perfilDotacionId, insumoId])
+  @@map("inv_perfil_dotacion_detalles")
+}
+
+/// Revisión del inventario de una ubicación (inicio o fin de turno, o extraordinaria).
+model VerificacionInventario {
+  id            String    @id @default(uuid()) @db.Char(36)
+  ubicacionId   String    @map("ubicacion_id") @db.Char(36)
+  turnoId       String?   @map("turno_id") @db.Char(36)
+  responsableId String    @map("responsable_id") @db.Char(36)
+  /// inicio_turno, fin_turno, extraordinaria
+  tipo          String    @db.VarChar(30)
+  /// borrador, completada, con_novedades
+  estado        String    @default("borrador") @db.VarChar(30)
+  iniciadaEn    DateTime  @map("iniciada_en") @db.DateTime(3)
+  finalizadaEn  DateTime? @map("finalizada_en") @db.DateTime(3)
+  observaciones String?   @db.Text
+  /// Revisión de las novedades por la central (agregado 2026-11-13, fuera del diseño original)
+  revisadaPorId String?   @map("revisada_por_id") @db.Char(36)
+  revisadaEn    DateTime? @map("revisada_en") @db.DateTime(3)
+  /// Qué se hizo con las novedades (ajuste, baja, reposición…)
+  resolucion    String?   @db.Text
+  creadaEn      DateTime  @default(now()) @map("creada_en") @db.DateTime(3)
+  actualizadaEn DateTime  @updatedAt @map("actualizada_en") @db.DateTime(3)
+
+  ubicacion   UbicacionInventario @relation(fields: [ubicacionId], references: [id])
+  turno       Turno?              @relation(fields: [turnoId], references: [id])
+  responsable Usuario             @relation("VerificacionInventarioResponsable", fields: [responsableId], references: [id])
+  revisadaPor Usuario?            @relation("VerificacionInventarioRevisadaPor", fields: [revisadaPorId], references: [id])
+
+  detalles DetalleVerificacion[]
+
+  @@index([ubicacionId, iniciadaEn])
+  @@index([responsableId, iniciadaEn])
+  @@index([estado])
+  @@index([estado, revisadaEn])
+  @@map("inv_verificaciones")
+}
+
+model DetalleVerificacion {
+  id                 String   @id @default(uuid()) @db.Char(36)
+  verificacionId     String   @map("verificacion_id") @db.Char(36)
+  perfilDetalleId    String?  @map("perfil_detalle_id") @db.Char(36)
+  insumoId           String   @map("insumo_id") @db.Char(36)
+  loteId             String?  @map("lote_id") @db.Char(36)
+  equipoId           String?  @map("equipo_id") @db.Char(36)
+  cantidadEsperada   Decimal  @default(0) @map("cantidad_esperada") @db.Decimal(12, 3)
+  cantidadEncontrada Decimal  @default(0) @map("cantidad_encontrada") @db.Decimal(12, 3)
+  /// conforme, faltante, sobrante, vencido, danado
+  estado             String   @db.VarChar(30)
+  observaciones      String?  @db.Text
+  creadoEn           DateTime @default(now()) @map("creado_en") @db.DateTime(3)
+
+  verificacion  VerificacionInventario @relation(fields: [verificacionId], references: [id])
+  perfilDetalle DetallePerfilDotacion? @relation(fields: [perfilDetalleId], references: [id])
+  insumo        Insumo                 @relation(fields: [insumoId], references: [id])
+  lote          Lote?                  @relation(fields: [loteId], references: [id], onDelete: Restrict)
+  equipo        Equipo?                @relation(fields: [equipoId], references: [id], onDelete: Restrict)
+
+  @@index([verificacionId])
+  @@map("inv_verificacion_detalles")
 }

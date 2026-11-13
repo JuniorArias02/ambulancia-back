@@ -72,6 +72,42 @@ describe('IniciarSesion', () => {
     });
   });
 
+  it('un ciudadano no entra por el acceso del personal aunque su correo y contraseña sean correctos', async () => {
+    await usuarios.crear(
+      crearUsuarioPrueba({ correo: 'ana@correo.co', rol: 'ciudadano' }),
+    );
+
+    await expect(
+      iniciarSesion.ejecutar({
+        correo: 'ana@correo.co',
+        contrasena: 'Secreta2026',
+        direccionIp: '10.0.0.9',
+      }),
+    ).rejects.toThrow(new NoAutenticadoError());
+    expect(sesiones.sesiones.size).toBe(0);
+    expect(auditoria.eventos.at(-1)).toMatchObject({
+      accion: 'inicio_sesion_fallido',
+      detalle: { motivo: 'acceso_no_corresponde_al_rol' },
+    });
+  });
+
+  it('con contraseña incorrecta el motivo sigue siendo la contraseña, sin revelar el rol', async () => {
+    await usuarios.crear(
+      crearUsuarioPrueba({ correo: 'ana@correo.co', rol: 'ciudadano' }),
+    );
+
+    await expect(
+      iniciarSesion.ejecutar({
+        correo: 'ana@correo.co',
+        contrasena: 'Incorrecta2026',
+        direccionIp: null,
+      }),
+    ).rejects.toThrow(new NoAutenticadoError());
+    expect(auditoria.eventos.at(-1)?.detalle).toEqual({
+      motivo: 'contrasena_invalida',
+    });
+  });
+
   describe('con cédula (ciudadanos)', () => {
     async function ciudadanoConCedula(numero = '1090123456') {
       const usuario = await usuarios.crear(
@@ -108,8 +144,9 @@ describe('IniciarSesion', () => {
           direccionIp: null,
         }),
       ).rejects.toThrow(new NoAutenticadoError());
+      expect(sesiones.sesiones.size).toBe(0);
       expect(auditoria.eventos.at(-1)?.detalle).toEqual({
-        motivo: 'usuario_inexistente',
+        motivo: 'acceso_no_corresponde_al_rol',
       });
     });
 

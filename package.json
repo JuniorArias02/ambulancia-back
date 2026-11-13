@@ -24,7 +24,8 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "db:migrar": "prisma migrate dev",
     "db:desplegar": "prisma migrate deploy",
-    "db:semilla": "prisma db seed"
+    "db:semilla": "prisma db seed",
+    "db:semilla:inventario-demo": "tsx prisma/semilla_inventario_demo.ts"
   },
   "dependencies": {
     "@nestjs/common": "^12.0.1",

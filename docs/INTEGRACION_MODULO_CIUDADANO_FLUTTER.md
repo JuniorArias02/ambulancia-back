@@ -64,15 +64,19 @@ No guarde ni muestre secretos. El token va en almacenamiento seguro, como ya hac
 
 ## D. Autenticación
 
-> **Agregado el 2026-11-02:** el ciudadano también entra con su **cédula**: `POST /ciudadanos/acceso` decide entre pedir la contraseña o registrarse, y `POST /autenticacion/iniciar-sesion-ciudadano` inicia la sesión. Detalle en [`ACCESO_CEDULA_CIUDADANO_FLUTTER.md`](ACCESO_CEDULA_CIUDADANO_FLUTTER.md). El login con correo de abajo sigue funcionando.
+> **Cambio del 2026-11-12: el ciudadano entra solo con su cédula.**
+> - `POST /autenticacion/iniciar-sesion` (correo) es **solo para el personal** de la institución. Un ciudadano que lo use recibe `401 Credenciales inválidas`, aunque su correo y su contraseña sean correctos.
+> - El personal tampoco puede entrar por el acceso con cédula.
+> - **Flujo:** `POST /ciudadanos/acceso` decide entre pedir la contraseña o registrarse, y `POST /autenticacion/iniciar-sesion-ciudadano` inicia la sesión.
+> - **En la app:** la pantalla de login del personal y la del ciudadano deben llamar cada una a su endpoint.
 
-Se reutiliza el login actual. No hay endpoints de sesión nuevos.
-
-### Iniciar sesión: `POST /autenticacion/iniciar-sesion`
+### Iniciar sesión: `POST /autenticacion/iniciar-sesion-ciudadano`
 
 ```json
-{ "correo": "carlos.ciudadano@prueba.co", "contrasena": "Prueba123*segura" }
+{ "numeroDocumento": "1090123456", "contrasena": "Prueba123*segura" }
 ```
+
+El número de documento puede llevar puntos o espacios: el backend los quita.
 
 `200`:
 
@@ -182,7 +186,7 @@ El perfil, con la misma forma de `GET /ciudadanos/perfil`:
 }
 ```
 
-El registro **no inicia sesión**. Después llame a `POST /autenticacion/iniciar-sesion` con el mismo correo y contraseña. `numeroDocumento` siempre llega enmascarado: solo los últimos 4 caracteres.
+El registro **no inicia sesión**. Después llame a `POST /autenticacion/iniciar-sesion-ciudadano` con la misma cédula y contraseña (no con el correo: ese acceso es del personal). `numeroDocumento` siempre llega enmascarado: solo los últimos 4 caracteres.
 
 ### Errores
 
@@ -598,7 +602,7 @@ Los mensajes de validación (`400`) vienen en inglés, porque los genera la libr
 | POST | `/ciudadanos/registro` | No | — | Crear la cuenta (multipart) |
 | POST | `/ciudadanos/acceso` | No | — | ¿La cédula tiene cuenta? (`ACCESO_CEDULA_CIUDADANO_FLUTTER.md`) |
 | POST | `/autenticacion/iniciar-sesion-ciudadano` | No | — | Login con cédula y contraseña |
-| POST | `/autenticacion/iniciar-sesion` | No | — | Login con correo (existente) |
+| POST | `/autenticacion/iniciar-sesion` | No | — | **No lo use en la app ciudadana:** es el login del personal (un ciudadano recibe `401`) |
 | POST | `/autenticacion/cerrar-sesion` | Sí | Cualquiera | Cerrar sesión (existente) |
 | GET | `/ciudadanos/perfil` | Sí | ciudadano | Perfil y verificación |
 | PATCH | `/ciudadanos/perfil` | Sí | ciudadano | Correo y teléfono |

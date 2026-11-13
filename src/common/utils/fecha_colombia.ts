@@ -12,3 +12,9 @@ export function diaColombia(fecha: Date): string {
     .format(fecha)
     .replaceAll('-', '');
 }
+
+/** "2026-10-25": el día de calendario en Colombia, en formato ISO. */
+export function fechaColombia(fecha: Date): string {
+  const dia = diaColombia(fecha);
+  return `${dia.slice(0, 4)}-${dia.slice(4, 6)}-${dia.slice(6, 8)}`;
+}

@@ -9,6 +9,7 @@ node_modules
 
 /dist
 /coverage
+*.tsbuildinfo
 
 # Documentos de identidad de los ciudadanos: nunca al repositorio
 /almacenamiento-privado

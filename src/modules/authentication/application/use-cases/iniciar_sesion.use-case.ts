@@ -22,6 +22,13 @@ export interface IniciarSesionDocumentoEntrada {
   direccionIp: string | null;
 }
 
+/**
+ * Cada acceso admite su público: el personal entra con correo (app del
+ * personal y web) y el ciudadano con su cédula (app ciudadana).
+ */
+const esPersonal = (usuario: Usuario) => !usuario.tieneRol(Roles.CIUDADANO);
+const esCiudadano = (usuario: Usuario) => usuario.tieneRol(Roles.CIUDADANO);
+
 export interface SesionIniciada {
   tokenAcceso: string;
   expiraEn: Date;
@@ -40,30 +47,32 @@ export class IniciarSesion {
     private readonly auditoria: AuditoriaRepositorio,
   ) {}
 
+  /** Entrada del personal de la institución con su correo. Un ciudadano no entra por aquí. */
   async ejecutar(datos: IniciarSesionEntrada): Promise<SesionIniciada> {
     const usuario = await this.usuariosRepositorio.buscarPorCorreo(
       Usuario.normalizarCorreo(datos.correo),
     );
-    return this.autenticar(usuario, datos);
+    return this.autenticar(usuario, datos, esPersonal);
   }
 
-  /**
-   * Entrada de los ciudadanos con su cédula. El personal sigue entrando con
-   * correo: un documento de otro rol se trata igual que uno inexistente.
-   */
+  /** Entrada de los ciudadanos con su cédula. El personal no entra por aquí. */
   async ejecutarConDocumento(
     datos: IniciarSesionDocumentoEntrada,
   ): Promise<SesionIniciada> {
-    const encontrado = await this.usuariosRepositorio.buscarPorDocumento(
+    const usuario = await this.usuariosRepositorio.buscarPorDocumento(
       normalizarNumeroDocumento(datos.numeroDocumento),
     );
-    const usuario = encontrado?.tieneRol(Roles.CIUDADANO) ? encontrado : null;
-    return this.autenticar(usuario, datos);
+    return this.autenticar(usuario, datos, esCiudadano);
   }
 
+  /**
+   * Una cuenta de otro público recibe el mismo error genérico que una
+   * contraseña incorrecta: la respuesta no revela qué cuentas existen.
+   */
   private async autenticar(
     usuario: Usuario | null,
     datos: { contrasena: string; direccionIp: string | null },
+    admitido: (usuario: Usuario) => boolean,
   ): Promise<SesionIniciada> {
     // Se verifica contra un hash ficticio cuando el correo no existe para que
     // el tiempo de respuesta no revele qué cuentas están registradas.
@@ -73,8 +82,18 @@ export class IniciarSesion {
       datos.contrasena,
     );
 
-    if (!usuario || !contrasenaValida || !usuario.estaActivo()) {
-      await this.registrarIntentoFallido(usuario, contrasenaValida, datos);
+    if (
+      !usuario ||
+      !contrasenaValida ||
+      !admitido(usuario) ||
+      !usuario.estaActivo()
+    ) {
+      await this.registrarIntentoFallido(
+        usuario,
+        contrasenaValida,
+        usuario ? admitido(usuario) : false,
+        datos,
+      );
       throw new NoAutenticadoError();
     }
 
@@ -113,14 +132,13 @@ export class IniciarSesion {
   private async registrarIntentoFallido(
     usuario: Usuario | null,
     contrasenaValida: boolean,
+    admitido: boolean,
     datos: { direccionIp: string | null },
   ): Promise<void> {
     let motivo = 'usuario_inexistente';
-    if (usuario) {
-      motivo = contrasenaValida
-        ? `usuario_${usuario.estado}`
-        : 'contrasena_invalida';
-    }
+    if (usuario && !contrasenaValida) motivo = 'contrasena_invalida';
+    else if (usuario && !admitido) motivo = 'acceso_no_corresponde_al_rol';
+    else if (usuario) motivo = `usuario_${usuario.estado}`;
 
     await this.auditoria.registrar({
       usuarioId: usuario?.id ?? null,

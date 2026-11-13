@@ -4,6 +4,7 @@
 > - [00-general.md](00-general.md): este archivo (stack, arquitectura, convenciones, estado)
 > - [ESTADO_PROYECTO.md](ESTADO_PROYECTO.md): resumen de lo hecho, decisiones, errores resueltos y la siguiente tarea
 > - [usuarios.md](usuarios.md): usuarios y roles
+> - [inventario.md](inventario.md): inventario de bodegas y ambulancias (web administra, paramédico opera su ambulancia)
 > - [lista-chequeo.md](lista-chequeo.md): lista de chequeo diaria de la ambulancia (administrador configura, conductor diligencia)
 > - [ciudadanos.md](ciudadanos.md): registro de ciudadanos, verificación documental y reportes de emergencia desde la app
 > - [autenticacion.md](autenticacion.md): login, sesiones, JWT, contraseña
@@ -44,6 +45,7 @@ Backend del sistema de **despacho de ambulancias y atención prehospitalaria** d
 ```bash
 docker compose up -d        # levantar MySQL
 npm run db:migrar           # prisma migrate dev
+npm run db:semilla:inventario-demo   # solo desarrollo: bodega, lotes y equipos DEMO y abastecimiento de ambulancias
 npm run db:semilla          # roles, tipos de ambulancia y administrador inicial
 npm run start:dev           # API en http://localhost:3000/api/v1
 npm run typecheck && npm run lint && npm test
@@ -67,6 +69,8 @@ Las 8 migraciones anteriores (`20261023235103_inicial` … `20261103025936_modul
   ```
 
   La BD local de desarrollo (MySQL en `localhost:3306`, la del `.env`) ya está así.
+
+Migraciones posteriores a la inicial (todas aditivas): `20261110014254_lista_chequeo` (5 tablas) `20261111223838_inventario` (15 tablas `inv_` con restricciones `CHECK` escritas a mano) y `20261113130557_revision_verificaciones` (revisión de novedades); ver [inventario.md](inventario.md).
 
 ## Configuración (`main.ts` y `.env`)
 
@@ -95,7 +99,7 @@ src/modules/<modulo>/
 └── <modulo>.module.ts   # enlaza contrato → implementación ({ provide: Repo, useClass: PrismaRepo })
 ```
 
-Módulos actuales: `audit`, `users`, `authentication`, `citizens` (ciudadanos), `checklists` (lista de chequeo), `ambulances` (incluye turnos), `emergencies`, `assignments`, `locations`, `prehospital_care` (historia clínica e instituciones de salud), `geocoding`, `routing`, `notifications`, `notifications` (tiempo real; ver [tiempo-real.md](tiempo-real.md)) (todos registrados en `src/app.module.ts`). Además, `src/common/events/` tiene el bus de eventos de dominio (`EventosModule`, global).
+Módulos actuales: `audit`, `users`, `authentication`, `citizens` (ciudadanos), `checklists` (lista de chequeo), `inventory` (inventario de bodegas y ambulancias, ver [inventario.md](inventario.md)), `ambulances` (incluye turnos), `emergencies`, `assignments`, `locations`, `prehospital_care` (historia clínica e instituciones de salud), `geocoding`, `routing`, `notifications`, `notifications` (tiempo real; ver [tiempo-real.md](tiempo-real.md)) (todos registrados en `src/app.module.ts`). Además, `src/common/events/` tiene el bus de eventos de dominio (`EventosModule`, global).
 
 ### Patrones que se repiten
 
@@ -162,6 +166,9 @@ Cuerpo de error: `{ codigoEstado, error, mensaje, ruta, fecha }`.
 | `SEGUIMIENTO_AMBULANCIA_CIUDADANO_FLUTTER.md` | Flutter: el ciudadano ve en el mapa la ambulancia de su reporte |
 | `WEBSOCKET_SEGUIMIENTO_CIUDADANO.md` | Servidor WebSocket: aceptar el rol ciudadano y el evento `seguimiento.actualizado` |
 | `ACCESO_CEDULA_CIUDADANO_FLUTTER.md` | Flutter: acceso del ciudadano con cédula (¿existe? → contraseña o registro) |
+| `INVENTARIO_FLUTTER.md` | Flutter: inventario de la ambulancia del paramédico (consumos, devoluciones, verificaciones) |
+| `INVENTARIO_FRONTEND.md` | Frontend web: administración del inventario (catálogo, bodegas, movimientos, dotación, alertas) |
+| `implementacion inventario.md` / `bd-inventario.md` | Requisitos y diseño de BD del inventario (entregados por el equipo) |
 | `LISTA_CHEQUEO_FLUTTER.md` | Flutter: lista de chequeo diaria del conductor |
 | `LISTA_CHEQUEO_FRONTEND.md` | Frontend web: configuración e historial de la lista de chequeo |
 | `VERIFICACION_CIUDADANOS_FRONTEND.md` | Frontend web: módulo del administrador para aprobar o rechazar ciudadanos |

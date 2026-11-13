@@ -57,6 +57,7 @@ import { TiposAmbulanciaController } from './presentation/controllers/tipos_ambu
   // el tiempo real, para recargar la ambulancia y el turno.
   exports: [
     AmbulanciasRepositorio,
+    TiposAmbulanciaRepositorio,
     TurnosRepositorio,
     ObtenerAmbulancia,
     ObtenerTurno,

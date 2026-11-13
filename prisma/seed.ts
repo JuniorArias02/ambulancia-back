@@ -1,5 +1,6 @@
 /**
- * Sincroniza los roles base y crea el administrador inicial si no existe.
+ * Sincroniza los roles base y crea el administrador inicial si no existe,
+ * la lista de chequeo base y el catálogo de inventario con los perfiles TAB/TAM.
  * Es idempotente: no modifica contraseñas ni roles de usuarios existentes.
  */
 import 'dotenv/config';
@@ -7,6 +8,7 @@ import { PrismaMariaDb } from '@prisma/adapter-mariadb';
 import argon2 from 'argon2';
 import { Roles, type NombreRol } from '../src/common/constants/roles.js';
 import { PrismaClient } from '../src/generated/prisma/client.js';
+import { sembrarInventarioBase } from './semillas/inventario_base.js';
 
 const DESCRIPCIONES_ROLES: Record<NombreRol, string> = {
   [Roles.ADMINISTRADOR]: 'Administración general del sistema',
@@ -162,6 +164,7 @@ try {
   await sembrarTiposAmbulancia();
   await sembrarAdministrador();
   await sembrarListaChequeo();
+  await sembrarInventarioBase(prisma);
 } finally {
   await prisma.$disconnect();
 }
