@@ -1,6 +1,6 @@
 # Inventario de bodegas y ambulancias (`src/modules/inventory`)
 
-> Contexto general en [00-general.md](00-general.md). Implementado el 2026-11-11 en la rama **`feat/inventario`**, que el documento pide independiente de la rama oficial. Requisitos: `docs/implementacion inventario.md`. Diseño de BD: `docs/bd-inventario.md`. Guías: `docs/INVENTARIO_FRONTEND.md` (web) y `docs/INVENTARIO_FLUTTER.md` (paramédico).
+> Contexto general en [00-general.md](00-general.md). Implementado el 2026-11-11 en la rama **`feat/inventario`**, que el documento pide independiente de la rama oficial. Los documentos de requisitos y de diseño de BD que entregó el equipo se retiraron de `docs/` el 2026-11-15 (siguen en el historial de git); lo que se implementó y lo que se decidió está en este archivo.
 
 ## Quién hace qué
 
@@ -103,9 +103,8 @@ En otros repositorios:
   - La respuesta trae `pendienteDeRevision` y `revision`.
   - La revisión existe si `revisada_en` no es nulo: el revisor podría quedar en `NULL` por la FK `SET NULL`.
   - Migración `20261113130557_revision_verificaciones`: 3 columnas opcionales, un índice `(estado, revisada_en)`, una FK y el `CHECK` `inv_verificaciones_revision_check` (`revisada_en IS NULL OR estado = 'con_novedades'`).
-  - **Se aparta del diseño oficial:** quedó anotado en `docs/bd-inventario.md`.
+  - **Se aparta del diseño oficial de BD** que entregó el equipo: estas tres columnas no estaban.
   - **Motivo:** sin revisión, la bandeja de novedades crecía sin fin y no quedaba constancia de cómo se atendió cada una.
-  - **Guía:** `docs/INVENTARIO_REVISION_NOVEDADES_FRONTEND.md`.
 
 ### Ubicaciones
 
@@ -129,7 +128,7 @@ En otros repositorios:
 
 ## Revisión de los documentos de requisitos (2026-11-11)
 
-Puntos encontrados en `docs/implementacion inventario.md` y `docs/bd-inventario.md`, y cómo se resolvieron:
+Puntos encontrados en los documentos de requisitos y de diseño de BD, y cómo se resolvieron:
 
 1. **El `CHECK` de `inv_ubicaciones` no se puede crear tal como está escrito:** MySQL lo rechaza por el `ON UPDATE CASCADE`. Se resolvió con `ON UPDATE RESTRICT` en esas dos claves foráneas.
 2. **El diseño no impedía existencias negativas ni cantidades en 0:** se agregaron `CHECK`.

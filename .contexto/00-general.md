@@ -22,6 +22,10 @@
 > - [historia-clinica.md](historia-clinica.md): historia clínica prehospitalaria (paramédico, cierre con huella, sin señal)
 > - [hoja-de-ruta.md](hoja-de-ruta.md): qué falta para la web y la app Flutter, y en qué orden
 > - [auditoria.md](auditoria.md): registro de eventos sensibles
+> - [consulta-clinica.md](consulta-clinica.md): consulta de historias clínicas en la web (bandeja, ingreso o servicio, trazabilidad)
+> - [firmas.md](firmas.md): firma registrada de los profesionales (cifrada) que se estampa al cerrar la historia clínica
+>
+> Diseños aún sin implementar (se discuten antes de escribir código): [`../.proximodesarrollo/`](../.proximodesarrollo/README.md). Hoy: ninguno; lo pendiente está al final de [firmas.md](firmas.md) y [consulta-clinica.md](consulta-clinica.md). Guías para el frontend y Flutter por entregar: `../.guias-temporales/` (se borran una vez entregadas).
 
 ## Qué es
 
@@ -70,7 +74,7 @@ Las 8 migraciones anteriores (`20261023235103_inicial` … `20261103025936_modul
 
   La BD local de desarrollo (MySQL en `localhost:3306`, la del `.env`) ya está así.
 
-Migraciones posteriores a la inicial (todas aditivas): `20261110014254_lista_chequeo` (5 tablas) `20261111223838_inventario` (15 tablas `inv_` con restricciones `CHECK` escritas a mano) y `20261113130557_revision_verificaciones` (revisión de novedades); ver [inventario.md](inventario.md).
+Migraciones posteriores a la inicial (todas aditivas): `20261110014254_lista_chequeo` (5 tablas) `20261111223838_inventario` (15 tablas `inv_` con restricciones `CHECK` escritas a mano) `20261113130557_revision_verificaciones` (revisión de novedades); ver [inventario.md](inventario.md). `20261113205626_valoraciones_downton` (escala de riesgo de caídas, con `CHECK` a mano); ver [historia-clinica.md](historia-clinica.md). `20261115021319_regimen_afiliacion` (columna en `historias_clinicas` con `CHECK`) y `20261115021430_firmas_usuarios` (tabla `firmas_usuarios` con 5 `CHECK` y `historias_clinicas.firma_cierre_id`); ver [firmas.md](firmas.md). `20261115041946_indices_consulta_clinica` (solo índices); ver [consulta-clinica.md](consulta-clinica.md). `20261115191220_modalidad_servicio` (`emergencias.modalidad` con `CHECK`) y `20261115191441_firmas_historia` (tabla `firmas_historia` con 6 `CHECK`); ver [firmas.md](firmas.md). `20261115193907_pacientes` (índice de pacientes con llenado inicial); ver [consulta-clinica.md](consulta-clinica.md).
 
 ## Configuración (`main.ts` y `.env`)
 
@@ -99,7 +103,7 @@ src/modules/<modulo>/
 └── <modulo>.module.ts   # enlaza contrato → implementación ({ provide: Repo, useClass: PrismaRepo })
 ```
 
-Módulos actuales: `audit`, `users`, `authentication`, `citizens` (ciudadanos), `checklists` (lista de chequeo), `inventory` (inventario de bodegas y ambulancias, ver [inventario.md](inventario.md)), `ambulances` (incluye turnos), `emergencies`, `assignments`, `locations`, `prehospital_care` (historia clínica e instituciones de salud), `geocoding`, `routing`, `notifications`, `notifications` (tiempo real; ver [tiempo-real.md](tiempo-real.md)) (todos registrados en `src/app.module.ts`). Además, `src/common/events/` tiene el bus de eventos de dominio (`EventosModule`, global).
+Módulos actuales: `audit`, `users`, `authentication`, `citizens` (ciudadanos), `checklists` (lista de chequeo), `inventory` (inventario de bodegas y ambulancias, ver [inventario.md](inventario.md)), `ambulances` (incluye turnos), `emergencies`, `assignments`, `locations`, `prehospital_care` (historia clínica e instituciones de salud), `signatures` (firmas de los profesionales, ver [firmas.md](firmas.md)), `geocoding`, `routing`, `notifications`, `notifications` (tiempo real; ver [tiempo-real.md](tiempo-real.md)) (todos registrados en `src/app.module.ts`). Además, `src/common/events/` tiene el bus de eventos de dominio (`EventosModule`, global).
 
 ### Patrones que se repiten
 
@@ -149,39 +153,22 @@ Cuerpo de error: `{ codigoEstado, error, mensaje, ruta, fecha }`.
 - Schema en `prisma/schema.prisma`: modelos en PascalCase singular, tablas en snake_case plural (`@@map`).
 - Migraciones: `20261023235103_inicial` (todas las tablas del sistema), `20261023235257_sesiones`, `20261024152813_direcciones_geocodificadas`, `20261024174516_geocodificaciones_inversas`, `20261024234520_rutas_asignacion` y `20261025143827_ciclo_atencion`.
 - Tablas ya creadas pero **sin módulo todavía**: `historias_clinicas`, `signos_vitales`, `lesiones`, `intervenciones`, `grabaciones`, `segmentos_audio`.
-- Diccionario de tablas: `docs/Base de datos Ambulancias Galenos — diccionario de tablas.md`.
+- **Fuente de verdad del modelo:** `prisma/schema.prisma` y sus migraciones. `docs/base datos.md` es el documento de diseño original (2026-10) y **está desactualizado**: no tiene inventario, lista de chequeo, ciudadanos, Downton, firmas ni los índices nuevos.
 
-## Documentación existente (`docs/`)
+## Documentación (`docs/` y `.contexto/`)
 
-| Archivo | Para quién |
-| --- | --- |
-| `arquitectura.md` | Reglas de arquitectura del backend |
-| `api-usuarios-roles-frontend.md` | Frontend: autenticación, roles y usuarios |
-| `api-ambulancias-frontend.md` | Frontend: tipos de ambulancia y ambulancias |
-| `api-emergencias-frontend.md` | Frontend: emergencias y duplicados |
-| `api-despacho-frontend.md` | Frontend: asignaciones, ubicaciones e instituciones de salud (la sección de turnos fue reemplazada) |
-| `instrucciones-agente-flutter.md` | Flutter: selección de ambulancia |
-| `RUTA_INSTITUCION_FLUTTER.md` | Flutter: hospital de destino y ruta del traslado |
-| `INTEGRACION_MODULO_CIUDADANO_FLUTTER.md` | Flutter: módulo ciudadano (registro, verificación, mapa, reportes) |
-| `SEGUIMIENTO_AMBULANCIA_CIUDADANO_FLUTTER.md` | Flutter: el ciudadano ve en el mapa la ambulancia de su reporte |
-| `WEBSOCKET_SEGUIMIENTO_CIUDADANO.md` | Servidor WebSocket: aceptar el rol ciudadano y el evento `seguimiento.actualizado` |
-| `ACCESO_CEDULA_CIUDADANO_FLUTTER.md` | Flutter: acceso del ciudadano con cédula (¿existe? → contraseña o registro) |
-| `INVENTARIO_FLUTTER.md` | Flutter: inventario de la ambulancia del paramédico (consumos, devoluciones, verificaciones) |
-| `INVENTARIO_FRONTEND.md` | Frontend web: administración del inventario (catálogo, bodegas, movimientos, dotación, alertas) |
-| `implementacion inventario.md` / `bd-inventario.md` | Requisitos y diseño de BD del inventario (entregados por el equipo) |
-| `LISTA_CHEQUEO_FLUTTER.md` | Flutter: lista de chequeo diaria del conductor |
-| `LISTA_CHEQUEO_FRONTEND.md` | Frontend web: configuración e historial de la lista de chequeo |
-| `VERIFICACION_CIUDADANOS_FRONTEND.md` | Frontend web: módulo del administrador para aprobar o rechazar ciudadanos |
-| `instrucciones-agente-frontend.md` | Frontend: quitar la asignación de tripulación |
-| `api-app-movil.md` | App Flutter: login, sesión y pantalla de inicio (`/mi-servicio`) |
-| `api-mapa-ambulancias-frontend.md` | Frontend: mapa de la flota (posiciones, filtros por estado, tiempo real) |
-| `api-rutas-frontend.md` | Frontend web y app: rutas de las ambulancias (GeoJSON, ETA, tiempo real) |
-| `api-ciclo-atencion-app.md` | App Flutter: ciclo de atención (llegada con GPS por el conductor, atención, traslado, cierre) |
-| `api-ciclo-atencion-web.md` | Frontend web: etapas en el mapa, "paciente a bordo", línea de tiempo |
-| `api-app-paramedico.md` | App Flutter: inicio del paramédico (tarjeta de emergencia → HC vacía), endpoints y estructura futura de la HC |
-| `api-historia-clinica-app.md` | App Flutter: historia clínica (abrir, llenar, signos, lesiones, intervenciones, cerrar, sin señal) |
-| `api-tiempo-real-frontend.md` | Frontend y app: WebSocket (conexión, salas, eventos y ejemplos) |
-| `guia-modulo-ambulancias.md` | Guía paso a paso para construir el módulo de ambulancias |
+**Desde el 2026-11-15, `docs/` solo guarda dos archivos:**
+- `arquitectura.md`: las reglas del proyecto, obligatorias;
+- `base datos.md`: el diseño original de la BD, desactualizado (ver "Base de datos").
+
+**Se retiraron** las guías para el frontend y para Flutter, los documentos de requisitos que entregó el equipo y el DBML. Siguen en el historial de git.
+
+**Dónde está cada cosa ahora:**
+- **Contrato REST:** Swagger (`/api/docs`), generado desde los DTO.
+- **Contrato de tiempo real:** [tiempo-real.md](tiempo-real.md), porque Swagger no lo cubre.
+- **Lógica, reglas y decisiones:** `.contexto/`.
+- **Diseños por implementar:** `.proximodesarrollo/`.
+- **Guías para el frontend y Flutter:** se entregan aparte, sin guardarlas en `docs/`.
 
 ## Estado actual (2026-10-24)
 

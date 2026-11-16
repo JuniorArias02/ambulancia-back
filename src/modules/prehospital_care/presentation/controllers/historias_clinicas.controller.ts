@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  Header,
   HttpCode,
   HttpStatus,
   Param,
@@ -10,6 +11,7 @@ import {
   Patch,
   Post,
   Query,
+  StreamableFile,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -20,10 +22,12 @@ import {
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
+  ApiProduces,
   ApiTags,
   ApiUnauthorizedResponse,
   ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { Roles } from '../../../../common/constants/roles.js';
 import { Contexto } from '../../../../common/decorators/contexto.decorator.js';
 import { RequiereRoles } from '../../../../common/decorators/requiere_roles.decorator.js';
@@ -37,10 +41,14 @@ import { CerrarHistoriaClinica } from '../../application/use-cases/cerrar_histor
 import { ConsultarHistoriasClinicas } from '../../application/use-cases/consultar_historias_clinicas.use-case.js';
 import { ObtenerHistoriaClinica } from '../../application/use-cases/obtener_historia_clinica.use-case.js';
 import { RegistrarEnHistoria } from '../../application/use-cases/registrar_en_historia.use-case.js';
+import { ObtenerFirmaCierre } from '../../application/use-cases/obtener_firma_cierre.use-case.js';
+import { ExportarHistoriaPdf } from '../../application/use-cases/exportar_historia_pdf.use-case.js';
+import { respuestaImagenFirma } from '../../../signatures/presentation/controllers/imagen_firma_respuesta.js';
 import {
   AbrirHistoriaClinicaDto,
   ActualizarHistoriaClinicaDto,
   AnularHistoriaClinicaDto,
+  CerrarHistoriaClinicaDto,
   ConsultarHistoriasClinicasDto,
   RegistrarIntervencionDto,
   RegistrarLesionDto,
@@ -76,6 +84,8 @@ export class HistoriasClinicasController {
     private readonly registrar: RegistrarEnHistoria,
     private readonly cerrar: CerrarHistoriaClinica,
     private readonly anular: AnularHistoriaClinica,
+    private readonly obtenerFirmaCierre: ObtenerFirmaCierre,
+    private readonly exportarPdf: ExportarHistoriaPdf,
   ) {}
 
   // Va antes de ':id' para que "catalogos" no se tome como un id.
@@ -293,20 +303,85 @@ export class HistoriasClinicasController {
   @Post(':id/cerrar')
   @RequiereRoles(Roles.PARAMEDICO)
   @HttpCode(HttpStatus.OK)
+  // La contraseña se puede adivinar por aquí: mismo límite que el login.
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @ApiOperation({
-    summary: 'Cerrar y sellar la historia (después ya no se edita)',
+    summary:
+      'Firmar electrónicamente (con la contraseña de quien firma) y cerrar la historia; después ya no se edita',
   })
   @ApiOkResponse({ type: HistoriaClinicaDetalleDto })
   @ApiUnprocessableEntityResponse({
-    description: 'Falta información: el mensaje dice qué',
+    description:
+      'Contraseña incorrecta o falta información (el mensaje dice qué)',
   })
   async cerrarHistoria(
     @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: CerrarHistoriaClinicaDto,
     @Contexto() contexto: ContextoSolicitud,
   ): Promise<HistoriaClinicaDetalleDto> {
     return HistoriaClinicaDetalleDto.desde(
-      await this.cerrar.ejecutar(id, contexto),
+      await this.cerrar.ejecutar(
+        id,
+        {
+          contrasena: dto.contrasena,
+          aceptaDeclaracion: dto.aceptaDeclaracion,
+        },
+        contexto,
+      ),
     );
+  }
+
+  @Get(':id/firma-cierre/imagen')
+  @RequiereRoles(Roles.PARAMEDICO, Roles.ADMINISTRADOR)
+  @Header('Cache-Control', 'no-store')
+  @ApiOperation({
+    summary:
+      'Imagen de la firma estampada al cerrar, en PNG (la versión que se usó; consulta auditada)',
+  })
+  @ApiProduces('image/png')
+  @ApiOkResponse({ description: 'La imagen' })
+  @ApiNotFoundResponse({
+    description: 'La historia no existe o se cerró sin firma registrada',
+  })
+  async firmaCierre(
+    @Param('id', ParseUUIDPipe) id: string,
+    @UsuarioActual() usuario: UsuarioAutenticado,
+    @Contexto() contexto: ContextoSolicitud,
+  ): Promise<StreamableFile> {
+    return respuestaImagenFirma(
+      await this.obtenerFirmaCierre.ejecutar(
+        id,
+        { usuarioId: usuario.id, rol: usuario.rol },
+        contexto,
+      ),
+    );
+  }
+
+  @Get(':id/pdf')
+  @RequiereRoles(Roles.PARAMEDICO, Roles.ADMINISTRADOR)
+  @Header('Cache-Control', 'no-store')
+  @ApiOperation({
+    summary:
+      'PDF de la historia con todas sus firmas (consulta auditada). En borrador o anulada, el PDF lo indica',
+  })
+  @ApiProduces('application/pdf')
+  @ApiOkResponse({ description: 'El PDF' })
+  @ApiNotFoundResponse({ description: 'La historia no existe' })
+  async pdf(
+    @Param('id', ParseUUIDPipe) id: string,
+    @UsuarioActual() usuario: UsuarioAutenticado,
+    @Contexto() contexto: ContextoSolicitud,
+  ): Promise<StreamableFile> {
+    const { nombreArchivo, contenido } = await this.exportarPdf.ejecutar(
+      id,
+      { usuarioId: usuario.id, rol: usuario.rol },
+      contexto,
+    );
+    return new StreamableFile(contenido, {
+      type: 'application/pdf',
+      disposition: `attachment; filename="${nombreArchivo}"`,
+      length: contenido.byteLength,
+    });
   }
 
   @Post(':id/anular')

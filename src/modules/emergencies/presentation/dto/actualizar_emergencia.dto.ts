@@ -3,7 +3,6 @@ import {
   IsIn,
   IsInt,
   IsNumber,
-  IsOptional,
   IsString,
   Matches,
   Max,
@@ -18,6 +17,8 @@ import {
   PRIORIDADES_EMERGENCIA,
   type PrioridadEmergencia,
   TIPOS_INCIDENTE,
+  MODALIDADES_SERVICIO,
+  type ModalidadServicio,
   type TipoIncidente,
 } from '../../domain/entities/emergencia.entity.js';
 import {
@@ -30,10 +31,16 @@ import {
 const SiTieneValor = () =>
   ValidateIf((_objeto, valor) => valor !== undefined && valor !== null);
 
+/**
+ * Para los campos obligatorios: se pueden omitir, pero si se envían (incluso
+ * `null`) se validan. `IsOptional` dejaría pasar `null` y la base lo rechazaría.
+ */
+const SiSeEnvia = () => ValidateIf((_objeto, valor) => valor !== undefined);
+
 /** Envíe solo lo que cambia. El estado no se cambia aquí. */
 export class ActualizarEmergenciaDto {
   @ApiPropertyOptional({ enum: FUENTES_EMERGENCIA })
-  @IsOptional()
+  @SiSeEnvia()
   @IsIn(FUENTES_EMERGENCIA)
   fuente?: FuenteEmergencia;
 
@@ -54,7 +61,7 @@ export class ActualizarEmergenciaDto {
     minLength: LONGITUD_DESCRIPCION.minima,
     maxLength: LONGITUD_DESCRIPCION.maxima,
   })
-  @IsOptional()
+  @SiSeEnvia()
   @IsString()
   @MinLength(LONGITUD_DESCRIPCION.minima)
   @MaxLength(LONGITUD_DESCRIPCION.maxima)
@@ -64,6 +71,14 @@ export class ActualizarEmergenciaDto {
   @SiTieneValor()
   @IsIn(TIPOS_INCIDENTE)
   tipoIncidente?: TipoIncidente | null;
+
+  @ApiPropertyOptional({
+    enum: MODALIDADES_SERVICIO,
+    description: 'Qué tipo de servicio es. No admite null',
+  })
+  @SiSeEnvia()
+  @IsIn(MODALIDADES_SERVICIO)
+  modalidad?: ModalidadServicio;
 
   @ApiPropertyOptional({ enum: PRIORIDADES_EMERGENCIA, nullable: true })
   @SiTieneValor()

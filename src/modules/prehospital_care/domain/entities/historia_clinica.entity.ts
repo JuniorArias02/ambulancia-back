@@ -1,8 +1,12 @@
 import { ReglaNegocioError } from '../../../../common/exceptions/errores_dominio.js';
 import { fusionarDefinidos } from '../../../../common/utils/objetos.js';
+import type { ModalidadServicio } from '../../../emergencies/domain/entities/emergencia.entity.js';
+import { faltantesDeFirmas } from '../politicas_firma.js';
+import type { ResumenFirmaHistoria } from './firma_historia.js';
 import type {
   Desenlace,
   EstadoHistoria,
+  RegimenAfiliacion,
   RolVictima,
   Sexo,
   TipoDocumento,
@@ -22,6 +26,7 @@ export interface DatosHistoria {
   edadAproximada: number | null;
   fechaNacimiento: Date | null;
   aseguradoraEps: string | null;
+  regimenAfiliacion: RegimenAfiliacion | null;
   acompananteNombre: string | null;
   acompananteTelefono: string | null;
   // Evento
@@ -103,6 +108,7 @@ export const DATOS_HISTORIA_VACIOS: DatosHistoria = {
   edadAproximada: null,
   fechaNacimiento: null,
   aseguradoraEps: null,
+  regimenAfiliacion: null,
   acompananteNombre: null,
   acompananteTelefono: null,
   horaEvento: null,
@@ -143,19 +149,36 @@ export interface PropiedadesHistoriaClinica {
   creadaPorId: string;
   cerradaPorId: string | null;
   hashCierre: string | null;
+  /** La versión de la firma registrada que se estampó al cerrar. */
+  firmaCierre: FirmaCierreHistoria | null;
   abiertaEn: Date;
   cerradaEn: Date | null;
   sincronizadaEn: Date | null;
   /** Solo lectura, para mostrar. */
   numeroEmergencia: string | null;
+  /** De la emergencia (la elige el despachador): define qué firmas se exigen. */
+  modalidad: ModalidadServicio;
   creadaPorNombre: string | null;
   cerradaPorNombre: string | null;
   institucionDestinoNombre: string | null;
 }
 
+/** La firma registrada del profesional, tal como quedó estampada en la historia. */
+export interface FirmaCierreHistoria {
+  id: string;
+  huellaSha256: string;
+  registradaEn: Date;
+}
+
 /** Lo que se necesita saber de los registros (signos, lesiones…) para validar el cierre. */
 export interface ResumenRegistros {
   signosVitales: number;
+  /**
+   * Las firmas de la historia (paciente, acudiente, testigo, receptor).
+   * `undefined` o `null` = no revisar firmas (transición con
+   * `FIRMA_CIERRE_OBLIGATORIA=false`).
+   */
+  firmas?: readonly ResumenFirmaHistoria[] | null;
 }
 
 /**
@@ -190,10 +213,13 @@ export class HistoriaClinica {
       creadaPorId: datos.creadaPorId,
       cerradaPorId: null,
       hashCierre: null,
+      firmaCierre: null,
       abiertaEn: datos.abiertaEn,
       cerradaEn: null,
       sincronizadaEn: datos.sincronizadaEn,
       numeroEmergencia: null,
+      // Se lee de la emergencia al guardar; mientras tanto, el valor por defecto.
+      modalidad: 'emergencia',
       creadaPorNombre: null,
       cerradaPorNombre: null,
       institucionDestinoNombre: null,
@@ -258,6 +284,9 @@ export class HistoriaClinica {
   get hashCierre(): string | null {
     return this.propiedades.hashCierre;
   }
+  get firmaCierre(): FirmaCierreHistoria | null {
+    return this.propiedades.firmaCierre;
+  }
   get abiertaEn(): Date {
     return this.propiedades.abiertaEn;
   }
@@ -266,6 +295,9 @@ export class HistoriaClinica {
   }
   get sincronizadaEn(): Date | null {
     return this.propiedades.sincronizadaEn;
+  }
+  get modalidad(): ModalidadServicio {
+    return this.propiedades.modalidad;
   }
   get numeroEmergencia(): string | null {
     return this.propiedades.numeroEmergencia;
@@ -312,14 +344,28 @@ export class HistoriaClinica {
     if (d.desenlace !== 'fallecido_en_sitio' && registros.signosVitales === 0) {
       faltantes.push('al menos una toma de signos vitales');
     }
+    if (registros.firmas) {
+      faltantes.push(
+        ...faltantesDeFirmas(
+          this.propiedades.modalidad,
+          d.desenlace,
+          registros.firmas,
+        ),
+      );
+    }
     return faltantes;
   }
 
-  /** `hash` es la huella del contenido al momento de cerrar (la calcula la aplicación). */
+  /**
+   * `calcularHuella` recibe la historia ya completa (con `entregadoEn`) y
+   * devuelve la huella del contenido: la calcula la aplicación, así el sello
+   * cubre exactamente lo que queda guardado.
+   */
   cerrar(datos: {
     cerradaPorId: string;
     fecha: Date;
-    hash: string;
+    firmaCierre: FirmaCierreHistoria | null;
+    calcularHuella: (historia: HistoriaClinica) => string;
     registros: ResumenRegistros;
   }): void {
     this.exigirBorrador();
@@ -335,10 +381,12 @@ export class HistoriaClinica {
     ) {
       this.propiedades.datos.entregadoEn = datos.fecha;
     }
+    const hash = datos.calcularHuella(this);
     this.propiedades.estado = 'cerrada';
     this.propiedades.cerradaPorId = datos.cerradaPorId;
     this.propiedades.cerradaEn = datos.fecha;
-    this.propiedades.hashCierre = datos.hash;
+    this.propiedades.firmaCierre = datos.firmaCierre;
+    this.propiedades.hashCierre = hash;
   }
 
   /** Corrige un error sin borrar: la historia queda como anulada, con su contenido intacto. */

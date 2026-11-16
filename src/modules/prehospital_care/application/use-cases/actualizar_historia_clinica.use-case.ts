@@ -13,6 +13,8 @@ import {
 import { InstitucionesSaludRepositorio } from '../../domain/repositories/instituciones_salud.repository.js';
 import { AccesoHistoriaClinica } from '../services/acceso_historia_clinica.service.js';
 
+import { CAMPOS_IDENTIDAD } from '../../domain/pacientes.js';
+import { IndicePacientes } from '../../domain/repositories/indice_pacientes.repository.js';
 /** Guarda lo que se va llenando; se puede llamar muchas veces mientras es borrador. */
 @Injectable()
 export class ActualizarHistoriaClinica {
@@ -21,6 +23,7 @@ export class ActualizarHistoriaClinica {
     private readonly institucionesRepositorio: InstitucionesSaludRepositorio,
     private readonly acceso: AccesoHistoriaClinica,
     private readonly auditoria: AuditoriaRepositorio,
+    private readonly indicePacientes: IndicePacientes,
   ) {}
 
   async ejecutar(
@@ -43,6 +46,9 @@ export class ActualizarHistoriaClinica {
 
     historia.actualizar(cambios);
     await this.historiasRepositorio.actualizar(historia, 'borrador');
+    if (CAMPOS_IDENTIDAD.some((campo) => cambios[campo] !== undefined)) {
+      await this.indicePacientes.enlazar(historia.id, historia.datos);
+    }
 
     await this.auditoria.registrar({
       usuarioId: contexto.usuarioId,

@@ -15,6 +15,8 @@ import {
   PRIORIDADES_EMERGENCIA,
   type PrioridadEmergencia,
   TIPOS_INCIDENTE,
+  MODALIDADES_SERVICIO,
+  type ModalidadServicio,
   type TipoIncidente,
 } from '../../domain/entities/emergencia.entity.js';
 
@@ -51,6 +53,11 @@ export class ConsultarEmergenciasDto extends PaginacionDto {
   @IsOptional()
   @IsIn(TIPOS_INCIDENTE)
   tipoIncidente?: TipoIncidente;
+
+  @ApiPropertyOptional({ enum: MODALIDADES_SERVICIO })
+  @IsOptional()
+  @IsIn(MODALIDADES_SERVICIO)
+  modalidad?: ModalidadServicio;
 
   @ApiPropertyOptional({
     type: String,

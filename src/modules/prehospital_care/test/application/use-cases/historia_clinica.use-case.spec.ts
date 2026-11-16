@@ -7,7 +7,11 @@ import {
   EmergenciasMemoria,
   crearEmergenciaPrueba,
 } from '../../../../../../test/dobles/emergencias_memoria.js';
-import { AuditoriaMemoria } from '../../../../../../test/dobles/repositorios_memoria.js';
+import {
+  AuditoriaMemoria,
+  HashFalso,
+  UsuariosMemoria,
+} from '../../../../../../test/dobles/repositorios_memoria.js';
 import {
   TurnosMemoria,
   crearTurnoPrueba,
@@ -18,6 +22,17 @@ import {
   ReglaNegocioError,
 } from '../../../../../common/exceptions/errores_dominio.js';
 import { Asignacion } from '../../../../assignments/domain/entities/asignacion.entity.js';
+import { Usuario } from '../../../../users/domain/entities/usuario.entity.js';
+import { FirmaElectronicaHistoria } from '../../../application/services/firma_electronica.service.js';
+import { PoliticaFirmaCierre } from '../../../application/services/politica_firma_cierre.js';
+import { FirmaUsuario } from '../../../../signatures/domain/entities/firma_usuario.entity.js';
+import {
+  AlmacenamientoFirmasMemoria,
+  crearPngPrueba,
+  FirmasUsuariosMemoria,
+} from '../../../../signatures/test/dobles/firmas_memoria.js';
+import { RegistrarFirmaHistoria } from '../../../application/use-cases/registrar_firma_historia.use-case.js';
+import { QuitarFirmaHistoria } from '../../../application/use-cases/quitar_firma_historia.use-case.js';
 import { AccesoHistoriaClinica } from '../../../application/services/acceso_historia_clinica.service.js';
 import { HuellaHistoria } from '../../../application/services/huella_historia.service.js';
 import { AbrirHistoriaClinica } from '../../../application/use-cases/abrir_historia_clinica.use-case.js';
@@ -31,6 +46,7 @@ import { InstitucionSalud } from '../../../domain/entities/institucion_salud.ent
 import type { MedicionesSignoVital } from '../../../domain/entities/registros_clinicos.js';
 import {
   HistoriasClinicasMemoria,
+  IndicePacientesMemoria,
   InstitucionesSaludMemoria,
 } from '../../dobles/historias_memoria.js';
 
@@ -64,10 +80,14 @@ const SIGNOS: MedicionesSignoVital = {
   escalaDolor: 3,
 };
 
+/** Lo que envía la app al firmar el cierre. */
+const FIRMA = { contrasena: 'Secreta2026', aceptaDeclaracion: true };
+
 describe('Historia clínica (casos de uso)', () => {
   let historias: HistoriasClinicasMemoria;
   let instituciones: InstitucionesSaludMemoria;
   let auditoria: AuditoriaMemoria;
+  let indice: IndicePacientesMemoria;
   let asignacion: Asignacion;
   let abrir: AbrirHistoriaClinica;
   let actualizar: ActualizarHistoriaClinica;
@@ -77,6 +97,44 @@ describe('Historia clínica (casos de uso)', () => {
   let consultar: ConsultarHistoriasClinicas;
   let anular: AnularHistoriaClinica;
   let hospitalId: string;
+  let firmas: FirmasUsuariosMemoria;
+  let firmaRegistrada: FirmaUsuario;
+  let usuarios: UsuariosMemoria;
+  let registrarFirma: RegistrarFirmaHistoria;
+  let quitarFirma: QuitarFirmaHistoria;
+  let almacenFirmas: AlmacenamientoFirmasMemoria;
+
+  /** El paciente no pudo firmar el comprobante (basta en las modalidades "si es posible"). */
+  function comprobanteSinFirma(historiaId: string) {
+    return registrarFirma.ejecutar(
+      historiaId,
+      {
+        rolFirmante: 'paciente',
+        proposito: 'comprobante_atencion',
+        motivoSinFirma: 'inconsciente_sin_acudiente',
+      },
+      paramedico,
+    );
+  }
+
+  /** El cierre con la política dada (por defecto: firma registrada obligatoria). */
+  function crearCierre(exigeFirmaRegistrada = true) {
+    return new CerrarHistoriaClinica(
+      historias,
+      new AccesoHistoriaClinica(
+        historias,
+        asignacionesDePrueba,
+        turnosDePrueba,
+      ),
+      new HuellaHistoria(),
+      new FirmaElectronicaHistoria(usuarios, new HashFalso(), auditoria),
+      firmas,
+      new PoliticaFirmaCierre(exigeFirmaRegistrada),
+      auditoria,
+    );
+  }
+  let asignacionesDePrueba: AsignacionesMemoria;
+  let turnosDePrueba: TurnosMemoria;
 
   beforeEach(async () => {
     const ambulancias = new AmbulanciasMemoria();
@@ -86,6 +144,7 @@ describe('Historia clínica (casos de uso)', () => {
     historias = new HistoriasClinicasMemoria();
     instituciones = new InstitucionesSaludMemoria();
     auditoria = new AuditoriaMemoria();
+    indice = new IndicePacientesMemoria();
 
     const ambulancia = await ambulancias.crear(crearAmbulanciaPrueba());
     const turno = await turnos.crear(crearTurnoPrueba(ambulancia.id));
@@ -104,18 +163,55 @@ describe('Historia clínica (casos de uso)', () => {
     hospitalId = hospital.id;
 
     const acceso = new AccesoHistoriaClinica(historias, asignaciones, turnos);
-    abrir = new AbrirHistoriaClinica(historias, acceso, auditoria);
+    abrir = new AbrirHistoriaClinica(historias, acceso, auditoria, indice);
     actualizar = new ActualizarHistoriaClinica(
       historias,
       instituciones,
       acceso,
       auditoria,
+      indice,
     );
     registrar = new RegistrarEnHistoria(historias, acceso, auditoria);
-    cerrar = new CerrarHistoriaClinica(
+    asignacionesDePrueba = asignaciones;
+    turnosDePrueba = turnos;
+    usuarios = new UsuariosMemoria();
+    usuarios.usuarios.set(
+      paramedico.usuarioId,
+      Usuario.reconstruir({
+        id: paramedico.usuarioId,
+        nombres: 'Lucía',
+        apellidos: 'Rojas',
+        correo: 'lucia@galenos.co',
+        telefono: null,
+        contrasenaHash: `hash:${FIRMA.contrasena}`,
+        estado: 'activo',
+        rol: Roles.PARAMEDICO,
+        ultimoAcceso: null,
+        creadoEn: new Date(),
+      }),
+    );
+    firmas = new FirmasUsuariosMemoria();
+    firmaRegistrada = await firmas.registrar(
+      FirmaUsuario.registrar({
+        usuarioId: paramedico.usuarioId,
+        claveAlmacenamiento: crypto.randomUUID(),
+        imagen: { tamanoBytes: 1000, anchoPx: 600, altoPx: 200 },
+        huellaSha256: 'b'.repeat(64),
+        fecha: new Date(),
+      }),
+    );
+    cerrar = crearCierre();
+    almacenFirmas = new AlmacenamientoFirmasMemoria();
+    registrarFirma = new RegistrarFirmaHistoria(
       historias,
       acceso,
-      new HuellaHistoria(),
+      almacenFirmas,
+      auditoria,
+    );
+    quitarFirma = new QuitarFirmaHistoria(
+      historias,
+      acceso,
+      almacenFirmas,
       auditoria,
     );
     obtener = new ObtenerHistoriaClinica(historias, acceso, auditoria);
@@ -241,9 +337,9 @@ describe('Historia clínica (casos de uso)', () => {
       paramedico,
     );
 
-    await expect(cerrar.ejecutar(historia.id, paramedico)).rejects.toThrow(
-      /desenlace.*signos vitales/,
-    );
+    await expect(
+      cerrar.ejecutar(historia.id, FIRMA, paramedico),
+    ).rejects.toThrow(/desenlace.*signos vitales/);
 
     await registrar.signoVital(historia.id, { mediciones: SIGNOS }, paramedico);
     const detalle = await actualizar.ejecutar(
@@ -257,7 +353,11 @@ describe('Historia clínica (casos de uso)', () => {
     );
     expect(detalle.lesiones).toHaveLength(1);
 
-    const cerrada = await cerrar.ejecutar(historia.id, paramedico);
+    await expect(
+      cerrar.ejecutar(historia.id, FIRMA, paramedico),
+    ).rejects.toThrow(/comprobante de atención/);
+    await comprobanteSinFirma(historia.id);
+    const cerrada = await cerrar.ejecutar(historia.id, FIRMA, paramedico);
     expect(cerrada.historia.estado).toBe('cerrada');
     expect(cerrada.historia.hashCierre).toMatch(/^[0-9a-f]{64}$/);
     expect(cerrada.historia.cerradaPorId).toBe('paramedico-1');
@@ -306,5 +406,318 @@ describe('Historia clínica (casos de uso)', () => {
       estadoAnterior: 'borrador',
       motivo: 'Abierta por error',
     });
+  });
+
+  describe('firma electrónica del cierre', () => {
+    async function historiaLista() {
+      const historia = await abrirHistoria();
+      await actualizar.ejecutar(
+        historia.id,
+        { triage: 'verde', desenlace: 'fallecido_en_sitio' },
+        paramedico,
+      );
+      return historia;
+    }
+
+    it('con la contraseña correcta firma, cierra y deja en la auditoría el método y la declaración', async () => {
+      const historia = await historiaLista();
+
+      const { historia: cerrada } = await cerrar.ejecutar(
+        historia.id,
+        FIRMA,
+        paramedico,
+      );
+
+      expect(cerrada.estado).toBe('cerrada');
+      expect(cerrada.cerradaPorId).toBe(paramedico.usuarioId);
+      expect(auditoria.eventos.at(-1)).toMatchObject({
+        accion: 'cerrar',
+        detalle: {
+          metodoFirma: 'reautenticacion_contrasena',
+          versionDeclaracion: 'v1',
+        },
+      });
+    });
+
+    it('con una contraseña errada no firma: sigue en borrador y queda el intento, sin la contraseña', async () => {
+      const historia = await historiaLista();
+
+      await expect(
+        cerrar.ejecutar(
+          historia.id,
+          { ...FIRMA, contrasena: 'Equivocada1' },
+          paramedico,
+        ),
+      ).rejects.toThrow(/no se firmó/);
+
+      expect(historias.historias.get(historia.id)?.estado).toBe('borrador');
+      const intento = auditoria.eventos.at(-1);
+      expect(intento?.accion).toBe('firma_rechazada');
+      expect(JSON.stringify(intento)).not.toContain('Equivocada1');
+    });
+
+    it('sin aceptar la declaración no firma', async () => {
+      const historia = await historiaLista();
+
+      await expect(
+        cerrar.ejecutar(
+          historia.id,
+          { ...FIRMA, aceptaDeclaracion: false },
+          paramedico,
+        ),
+      ).rejects.toThrow(ReglaNegocioError);
+      expect(historias.historias.get(historia.id)?.estado).toBe('borrador');
+    });
+  });
+
+  describe('firma registrada estampada al cerrar', () => {
+    async function historiaLista() {
+      const historia = await abrirHistoria();
+      await actualizar.ejecutar(
+        historia.id,
+        { triage: 'verde', desenlace: 'fallecido_en_sitio' },
+        paramedico,
+      );
+      return historia;
+    }
+
+    it('estampa la versión vigente de la firma y la deja en la auditoría', async () => {
+      const historia = await historiaLista();
+
+      const { historia: cerrada } = await cerrar.ejecutar(
+        historia.id,
+        FIRMA,
+        paramedico,
+      );
+
+      expect(cerrada.firmaCierre).toEqual({
+        id: firmaRegistrada.id,
+        huellaSha256: firmaRegistrada.huellaSha256,
+        registradaEn: firmaRegistrada.registradaEn,
+      });
+      expect(auditoria.eventos.at(-1)?.detalle).toMatchObject({
+        firmaCierreId: firmaRegistrada.id,
+      });
+    });
+
+    it('sin firma registrada no cierra, salvo durante la transición', async () => {
+      firmas.firmas.clear();
+      const historia = await historiaLista();
+
+      await expect(
+        cerrar.ejecutar(historia.id, FIRMA, paramedico),
+      ).rejects.toThrow(/Registre su firma/);
+      expect(historias.historias.get(historia.id)?.estado).toBe('borrador');
+
+      const { historia: cerrada } = await crearCierre(false).ejecutar(
+        historia.id,
+        FIRMA,
+        paramedico,
+      );
+      expect(cerrada.estado).toBe('cerrada');
+      expect(cerrada.firmaCierre).toBeNull();
+    });
+
+    it('la huella cubre la firma estampada y la hora de entrega que se pone al cerrar', async () => {
+      const historia = await abrirHistoria();
+      await registrar.signoVital(
+        historia.id,
+        { mediciones: SIGNOS },
+        paramedico,
+      );
+      await actualizar.ejecutar(
+        historia.id,
+        {
+          triage: 'amarillo',
+          desenlace: 'trasladado',
+          institucionDestinoId: hospitalId,
+          receptorNombre: 'Dra. Gómez',
+        },
+        paramedico,
+      );
+
+      await registrarFirma.ejecutar(
+        historia.id,
+        {
+          rolFirmante: 'acudiente',
+          proposito: 'comprobante_atencion',
+          nombreFirmante: 'María Pérez Gómez',
+          tipoDocumento: 'CC',
+          numeroDocumento: '60.123.456',
+          parentesco: 'madre',
+          imagen: crearPngPrueba(),
+        },
+        paramedico,
+      );
+      const detalle = await cerrar.ejecutar(historia.id, FIRMA, paramedico);
+
+      expect(detalle.historia.datos.entregadoEn).not.toBeNull();
+      const huella = new HuellaHistoria();
+      expect(detalle.historia.hashCierre).toBe(
+        huella.calcular(detalle, detalle.historia.firmaCierre),
+      );
+      expect(detalle.historia.hashCierre).not.toBe(
+        huella.calcular(detalle, null),
+      );
+    });
+  });
+
+  it('guarda el régimen de afiliación del paciente', async () => {
+    const historia = await abrirHistoria();
+    const detalle = await actualizar.ejecutar(
+      historia.id,
+      { aseguradoraEps: 'Nueva EPS', regimenAfiliacion: 'subsidiado' },
+      paramedico,
+    );
+    expect(detalle.historia.datos.regimenAfiliacion).toBe('subsidiado');
+  });
+
+  describe('firmas del paciente, familiar, testigo y receptor', () => {
+    it('toma la firma: guarda la imagen, no duplica al reenviar y la auditoría no lleva nombres', async () => {
+      const historia = await abrirHistoria();
+      await actualizar.ejecutar(
+        historia.id,
+        { nombres: 'Juan', numeroDocumento: '1090123456', tipoDocumento: 'CC' },
+        paramedico,
+      );
+      const id = '7d1e2f3a-4b5c-4d6e-8f70-81a2b3c4d5e6';
+      const datos = {
+        id,
+        rolFirmante: 'paciente' as const,
+        proposito: 'comprobante_atencion' as const,
+        imagen: crearPngPrueba(),
+      };
+
+      const firma = await registrarFirma.ejecutar(
+        historia.id,
+        datos,
+        paramedico,
+      );
+      await registrarFirma.ejecutar(historia.id, datos, paramedico);
+
+      expect(firma.nombreFirmante).toBe('Juan');
+      expect(historias.firmasHistoria).toHaveLength(1);
+      expect(almacenFirmas.archivos.size).toBe(1);
+      const evento = auditoria.eventos.at(-1);
+      expect(evento?.accion).toBe('registrar_firma_paciente');
+      expect(JSON.stringify(evento)).not.toMatch(/Juan|1090123456/);
+    });
+
+    it('una segunda firma del mismo rol y propósito da 409 y no deja la imagen', async () => {
+      const historia = await abrirHistoria();
+      await comprobanteSinFirma(historia.id);
+      await expect(
+        registrarFirma.ejecutar(
+          historia.id,
+          {
+            rolFirmante: 'paciente',
+            proposito: 'comprobante_atencion',
+            motivoSinFirma: 'fallecido',
+          },
+          paramedico,
+        ),
+      ).rejects.toThrow(/Ya hay una firma/);
+    });
+
+    it('rechazo con el paciente negándose: exige un testigo para cerrar', async () => {
+      const historia = await abrirHistoria();
+      await registrar.signoVital(
+        historia.id,
+        { mediciones: SIGNOS },
+        paramedico,
+      );
+      await actualizar.ejecutar(
+        historia.id,
+        {
+          triage: 'verde',
+          desenlace: 'rechazo_traslado',
+          motivoRechazo: 'No quiere ir',
+        },
+        paramedico,
+      );
+      await registrarFirma.ejecutar(
+        historia.id,
+        {
+          rolFirmante: 'paciente',
+          proposito: 'disentimiento',
+          motivoSinFirma: 'se_nego',
+        },
+        paramedico,
+      );
+      await expect(
+        cerrar.ejecutar(historia.id, FIRMA, paramedico),
+      ).rejects.toThrow(/testigo/);
+
+      await registrarFirma.ejecutar(
+        historia.id,
+        {
+          rolFirmante: 'testigo',
+          proposito: 'disentimiento',
+          nombreFirmante: 'Carlos Ruiz Díaz',
+          tipoDocumento: 'CC',
+          numeroDocumento: '88123456',
+          imagen: crearPngPrueba(),
+        },
+        paramedico,
+      );
+      const { historia: cerrada } = await cerrar.ejecutar(
+        historia.id,
+        FIRMA,
+        paramedico,
+      );
+      expect(cerrada.estado).toBe('cerrada');
+    });
+
+    it('quitar en borrador borra el registro y la imagen; cerrada ya no se puede', async () => {
+      const historia = await abrirHistoria();
+      await actualizar.ejecutar(
+        historia.id,
+        { triage: 'verde', desenlace: 'fallecido_en_sitio' },
+        paramedico,
+      );
+      const firma = await registrarFirma.ejecutar(
+        historia.id,
+        {
+          rolFirmante: 'acudiente',
+          proposito: 'comprobante_atencion',
+          nombreFirmante: 'María Pérez',
+          tipoDocumento: 'CC',
+          numeroDocumento: '60123456',
+          parentesco: 'madre',
+          imagen: crearPngPrueba(),
+        },
+        paramedico,
+      );
+
+      await quitarFirma.ejecutar(historia.id, firma.id, paramedico);
+      expect(historias.firmasHistoria).toHaveLength(0);
+      expect(almacenFirmas.archivos.size).toBe(0);
+      expect(auditoria.eventos.at(-1)?.accion).toBe('eliminar_firma_acudiente');
+
+      await cerrar.ejecutar(historia.id, FIRMA, paramedico);
+      await expect(comprobanteSinFirma(historia.id)).rejects.toThrow(
+        ReglaNegocioError,
+      );
+    });
+  });
+
+  it('enlaza la historia al índice de pacientes cuando se guarda el documento', async () => {
+    const historia = await abrirHistoria();
+    await actualizar.ejecutar(historia.id, { triage: 'verde' }, paramedico);
+    expect(indice.enlaces.has(historia.id)).toBe(false);
+
+    await actualizar.ejecutar(
+      historia.id,
+      { tipoDocumento: 'CC', numeroDocumento: '1.090.123.456' },
+      paramedico,
+    );
+    expect(indice.enlaces.get(historia.id)).toBe('CC 1090123456');
+
+    await actualizar.ejecutar(
+      historia.id,
+      { numeroDocumento: null },
+      paramedico,
+    );
+    expect(indice.enlaces.get(historia.id)).toBeNull();
   });
 });

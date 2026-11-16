@@ -17,6 +17,8 @@ import {
   PRIORIDADES_EMERGENCIA,
   type PrioridadEmergencia,
   TIPOS_INCIDENTE,
+  MODALIDADES_SERVICIO,
+  type ModalidadServicio,
   type TipoIncidente,
 } from '../../domain/entities/emergencia.entity.js';
 import {
@@ -57,6 +59,16 @@ export class RegistrarEmergenciaDto {
   @IsOptional()
   @IsIn(TIPOS_INCIDENTE)
   tipoIncidente?: TipoIncidente;
+
+  @ApiPropertyOptional({
+    enum: MODALIDADES_SERVICIO,
+    default: 'emergencia',
+    description:
+      'Qué tipo de servicio es (no el tipo de ambulancia). Define qué firmas exige la historia clínica',
+  })
+  @IsOptional()
+  @IsIn(MODALIDADES_SERVICIO)
+  modalidad?: ModalidadServicio;
 
   @ApiPropertyOptional({ enum: PRIORIDADES_EMERGENCIA, example: 'amarilla' })
   @IsOptional()

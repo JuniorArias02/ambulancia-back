@@ -1,13 +1,20 @@
 import { ConflictoNegocioError } from '../../../../common/exceptions/errores_dominio.js';
 import type { ResultadoPaginado } from '../../../../common/types/resultado_paginado.js';
 import type { EstadoHistoria } from '../../domain/catalogos_clinicos.js';
-import { HistoriaClinica } from '../../domain/entities/historia_clinica.entity.js';
+import {
+  type DatosHistoria,
+  HistoriaClinica,
+} from '../../domain/entities/historia_clinica.entity.js';
+import { documentoEnlazable } from '../../domain/pacientes.js';
+import { IndicePacientes } from '../../domain/repositories/indice_pacientes.repository.js';
 import type { InstitucionSalud } from '../../domain/entities/institucion_salud.entity.js';
 import type {
   Intervencion,
   Lesion,
   SignoVital,
 } from '../../domain/entities/registros_clinicos.js';
+import type { ValoracionDownton } from '../../domain/entities/valoracion_downton.entity.js';
+import type { FirmaHistoria } from '../../domain/entities/firma_historia.js';
 import {
   type DetalleHistoria,
   type FiltrosHistorias,
@@ -22,6 +29,10 @@ export class HistoriasClinicasMemoria extends HistoriasClinicasRepositorio {
   readonly signos: SignoVital[] = [];
   readonly lesiones: Lesion[] = [];
   readonly intervenciones: Intervencion[] = [];
+  readonly valoracionesDownton: ValoracionDownton[] = [];
+  readonly firmasHistoria: FirmaHistoria[] = [];
+  /** segmentoAudioId → historiaClinicaId de su grabación. */
+  readonly segmentosAudio = new Map<string, string>();
 
   buscarPorId(id: string): Promise<HistoriaClinica | null> {
     const historia = this.historias.get(id);
@@ -42,6 +53,8 @@ export class HistoriasClinicasMemoria extends HistoriasClinicasRepositorio {
       signosVitales: deEsta(this.signos),
       lesiones: deEsta(this.lesiones),
       intervenciones: deEsta(this.intervenciones),
+      valoracionesDownton: deEsta(this.valoracionesDownton),
+      firmasHistoria: deEsta(this.firmasHistoria),
     };
   }
 
@@ -101,17 +114,106 @@ export class HistoriasClinicasMemoria extends HistoriasClinicasRepositorio {
     return Promise.resolve(this.agregar(this.intervenciones, intervencion));
   }
 
+  agregarValoracionDownton(
+    valoracion: ValoracionDownton,
+  ): Promise<ValoracionDownton> {
+    const existente = this.valoracionesDownton.find(
+      (v) => v.id === valoracion.id,
+    );
+    if (
+      existente &&
+      existente.historiaClinicaId !== valoracion.historiaClinicaId
+    ) {
+      return Promise.reject(
+        new ConflictoNegocioError(
+          'Ya existe un registro con ese id en otra historia',
+        ),
+      );
+    }
+    return Promise.resolve(this.agregar(this.valoracionesDownton, valoracion));
+  }
+
+  listarValoracionesDownton(historiaId: string): Promise<ValoracionDownton[]> {
+    return Promise.resolve(
+      this.valoracionesDownton
+        .filter((v) => v.historiaClinicaId === historiaId)
+        .sort((a, b) => a.evaluadaEn.getTime() - b.evaluadaEn.getTime()),
+    );
+  }
+
+  buscarValoracionDownton(
+    historiaId: string,
+    valoracionId: string,
+  ): Promise<ValoracionDownton | null> {
+    return Promise.resolve(
+      this.valoracionesDownton.find(
+        (v) => v.id === valoracionId && v.historiaClinicaId === historiaId,
+      ) ?? null,
+    );
+  }
+
+  segmentoAudioDeHistoria(
+    segmentoAudioId: string,
+    historiaId: string,
+  ): Promise<boolean> {
+    return Promise.resolve(
+      this.segmentosAudio.get(segmentoAudioId) === historiaId,
+    );
+  }
+
+  agregarFirmaHistoria(firma: FirmaHistoria): Promise<FirmaHistoria> {
+    const existente = this.firmasHistoria.find((f) => f.id === firma.id);
+    if (existente) return Promise.resolve(existente);
+    const repetida = this.firmasHistoria.some(
+      (f) =>
+        f.historiaClinicaId === firma.historiaClinicaId &&
+        f.proposito === firma.proposito &&
+        f.rolFirmante === firma.rolFirmante,
+    );
+    if (repetida) {
+      return Promise.reject(
+        new ConflictoNegocioError('Ya hay una firma de ese firmante'),
+      );
+    }
+    this.firmasHistoria.push(firma);
+    return Promise.resolve(firma);
+  }
+
+  buscarFirmaHistoria(
+    historiaId: string,
+    firmaId: string,
+  ): Promise<FirmaHistoria | null> {
+    return Promise.resolve(
+      this.firmasHistoria.find(
+        (f) => f.id === firmaId && f.historiaClinicaId === historiaId,
+      ) ?? null,
+    );
+  }
+
+  eliminarFirmaHistoria(historiaId: string, firmaId: string): Promise<boolean> {
+    const i = this.firmasHistoria.findIndex(
+      (f) => f.id === firmaId && f.historiaClinicaId === historiaId,
+    );
+    if (i < 0) return Promise.resolve(false);
+    this.firmasHistoria.splice(i, 1);
+    return Promise.resolve(true);
+  }
+
   eliminarRegistro(
     tipo: TipoRegistroClinico,
     historiaId: string,
     registroId: string,
   ): Promise<boolean> {
-    const lista: { id: string; historiaClinicaId: string }[] =
-      tipo === 'signo_vital'
-        ? this.signos
-        : tipo === 'lesion'
-          ? this.lesiones
-          : this.intervenciones;
+    const listas: Record<
+      TipoRegistroClinico,
+      { id: string; historiaClinicaId: string }[]
+    > = {
+      signo_vital: this.signos,
+      lesion: this.lesiones,
+      intervencion: this.intervenciones,
+      valoracion_downton: this.valoracionesDownton,
+    };
+    const lista = listas[tipo];
     const i = lista.findIndex(
       (r) => r.id === registroId && r.historiaClinicaId === historiaId,
     );
@@ -140,10 +242,12 @@ export class HistoriasClinicasMemoria extends HistoriasClinicasRepositorio {
       creadaPorId: h.creadaPorId,
       cerradaPorId: h.cerradaPorId,
       hashCierre: h.hashCierre,
+      firmaCierre: h.firmaCierre,
       abiertaEn: h.abiertaEn,
       cerradaEn: h.cerradaEn,
       sincronizadaEn: h.sincronizadaEn,
       numeroEmergencia: h.numeroEmergencia,
+      modalidad: h.modalidad,
       creadaPorNombre: h.creadaPorNombre,
       cerradaPorNombre: h.cerradaPorNombre,
       institucionDestinoNombre: h.institucionDestinoNombre,
@@ -179,5 +283,21 @@ export class InstitucionesSaludMemoria extends InstitucionesSaludRepositorio {
   }
   actualizar(institucion: InstitucionSalud): Promise<InstitucionSalud> {
     return this.crear(institucion);
+  }
+}
+
+/** Recuerda qué historia quedó enlazada a qué documento. */
+export class IndicePacientesMemoria extends IndicePacientes {
+  readonly enlaces = new Map<string, string | null>();
+
+  enlazar(historiaId: string, datos: Readonly<DatosHistoria>): Promise<void> {
+    const documento = documentoEnlazable(datos);
+    this.enlaces.set(
+      historiaId,
+      documento
+        ? `${documento.tipoDocumento} ${documento.numeroDocumento}`
+        : null,
+    );
+    return Promise.resolve();
   }
 }

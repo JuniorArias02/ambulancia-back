@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  Equals,
   IsBoolean,
   IsDate,
   IsIn,
@@ -18,6 +19,8 @@ import {
 import {
   DESENLACES,
   type Desenlace,
+  REGIMENES_AFILIACION,
+  type RegimenAfiliacion,
   REGIONES_CORPORALES,
   type RegionCorporal,
   ROLES_VICTIMA,
@@ -123,6 +126,15 @@ export class ActualizarHistoriaClinicaDto {
   fechaNacimiento?: Date | null;
 
   @Texto(120) aseguradoraEps?: string | null;
+
+  @ApiPropertyOptional({
+    enum: REGIMENES_AFILIACION,
+    nullable: true,
+    description: 'Régimen de afiliación al sistema de salud',
+  })
+  @SiTieneValor()
+  @IsIn(REGIMENES_AFILIACION)
+  regimenAfiliacion?: RegimenAfiliacion | null;
   @Texto(150) acompananteNombre?: string | null;
   @Texto(30) acompananteTelefono?: string | null;
 
@@ -368,6 +380,27 @@ export class RegistrarIntervencionDto {
   @IsString()
   @MaxLength(255)
   resultado?: string;
+}
+
+/** Firma electrónica del cierre: quien cierra vuelve a escribir su contraseña. */
+export class CerrarHistoriaClinicaDto {
+  @ApiProperty({
+    description:
+      'La contraseña de quien firma, escrita en ese momento. No se guarda ni se registra',
+    maxLength: 128,
+  })
+  @IsString()
+  @MinLength(1)
+  @MaxLength(128)
+  contrasena: string;
+
+  @ApiProperty({
+    enum: [true],
+    description:
+      'Acepta la declaración de veracidad (texto en GET /historias-clinicas/catalogos → declaracionFirma)',
+  })
+  @Equals(true, { message: 'Debe aceptar la declaración de veracidad' })
+  aceptaDeclaracion: boolean;
 }
 
 export class AnularHistoriaClinicaDto {

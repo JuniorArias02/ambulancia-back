@@ -13,3 +13,6 @@ node_modules
 
 # Documentos de identidad de los ciudadanos: nunca al repositorio
 /almacenamiento-privado
+
+# Guías temporales de integración para frontend y Flutter: no van al repositorio
+/.guias-temporales

@@ -1,6 +1,6 @@
 # Ambulancias Galenos — API
 
-NestJS 12 + Prisma 7 (MySQL 8.4) con arquitectura hexagonal. Reglas del proyecto en [`docs/arquitectura.md`](docs/arquitectura.md) y modelo de datos vigente en [`docs/ambulancias_galenos (1).dbml`](<docs/ambulancias_galenos (1).dbml>) (implementado en [`prisma/schema.prisma`](prisma/schema.prisma)).
+NestJS 12 + Prisma 7 (MySQL 8.4) con arquitectura hexagonal. Reglas del proyecto en [`docs/arquitectura.md`](docs/arquitectura.md) y modelo de datos vigente en [`prisma/schema.prisma`](prisma/schema.prisma). Contexto de los módulos, reglas de negocio y decisiones en [`.contexto/`](.contexto/00-general.md).
 
 ## Puesta en marcha
 
@@ -105,4 +105,4 @@ El backend calcula la ruta por calles de cada ambulancia hacia su emergencia (al
 
 ## Tiempo real
 
-El WebSocket es un servidor aparte: [`../../webSocket`](../../webSocket/README.md). Esta API le entrega cada evento confirmado por HTTP interno, con reintentos, y le verifica las sesiones de quien se conecta. Configure `TIEMPO_REAL_URL` y `TIEMPO_REAL_CLAVE_INTERNA` (la misma clave que `CLAVE_INTERNA` allá); si faltan, la API funciona igual sin notificaciones. Detalle en [`.contexto/tiempo-real.md`](.contexto/tiempo-real.md) y contrato para los clientes en [`docs/api-tiempo-real-frontend.md`](docs/api-tiempo-real-frontend.md).
+El WebSocket es un servidor aparte: [`../../webSocket`](../../webSocket/README.md). Esta API le entrega cada evento confirmado por HTTP interno, con reintentos, y le verifica las sesiones de quien se conecta. Configure `TIEMPO_REAL_URL` y `TIEMPO_REAL_CLAVE_INTERNA` (la misma clave que `CLAVE_INTERNA` allá); si faltan, la API funciona igual sin notificaciones. Detalle en [`.contexto/tiempo-real.md`](.contexto/tiempo-real.md), donde también está el contrato de eventos para los clientes.

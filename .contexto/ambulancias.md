@@ -1,6 +1,6 @@
 # Módulo de ambulancias (`src/modules/ambulances`)
 
-> Contexto general en [00-general.md](00-general.md). Guía de construcción: `docs/guia-modulo-ambulancias.md`. Guía para frontend: `docs/api-ambulancias-frontend.md`.
+> Contexto general en [00-general.md](00-general.md).
 
 ## Qué hace
 
@@ -89,7 +89,7 @@ test/dobles/ambulancias_memoria.ts   (TiposAmbulanciaMemoria, AmbulanciasMemoria
 
 ## Historia de cómo se construyó (2026-10-24)
 
-1. Se escribió `docs/guia-modulo-ambulancias.md` con el código completo, ya probado.
+1. Se escribió una guía con el código completo, ya probado (ya no está en el repositorio).
 2. El desarrollador lo empezó a mano hasta los casos de uso. En la revisión aparecieron estos errores:
    - el contrato `cambiarEstado(ambulanciaId, nuevoEstado)` no coincidía con su uso ni permitía guardar el historial;
    - imports con `.ts` en lugar de `.js`; faltaba `estadoNuevo` en el historial; el spec estaba vacío;
@@ -97,9 +97,8 @@ test/dobles/ambulancias_memoria.ts   (TiposAmbulanciaMemoria, AmbulanciasMemoria
    - se lanzaba `new Error(...)` en vez de errores de dominio (respondía 500 en vez de 404/409/422);
    - `CambiarEstadoAmbulancia` llamaba a `actualizar()` antes de `cambiarEstado()` y devolvía la entidad equivocada;
    - a `ConsultarAmbulancias` le faltaba `@Injectable()`; había nombres con errores (`ActualziarAmbulancia`, `tipos_ambulancia_entity.ts`, `tipoAmbulancia` en vez de `tipoAmbulanciaId`, `creadoEn`/`registrarEn`).
-3. Se reemplazó todo por la versión de la guía y se completó el resto: infraestructura, DTOs, controladores, módulo, registro en `app.module.ts`, seed, README, dobles y pruebas.
+3. Se reemplazó todo por la versión probada y se completó el resto: infraestructura, DTOs, controladores, módulo, registro en `app.module.ts`, seed, README, dobles y pruebas.
 4. Resultado: `typecheck` y `lint` limpios, **32/32 pruebas** y seed ejecutado (TAB y TAM en la BD).
-5. Se creó `docs/api-ambulancias-frontend.md` para el equipo de frontend.
 
 ## Cambios posteriores (2026-10-24, con turnos y asignaciones)
 

@@ -1,6 +1,6 @@
 # Módulo de rutas (`src/modules/routing`)
 
-> Contexto general en [00-general.md](00-general.md). Guía para frontend y app: `docs/api-rutas-frontend.md`.
+> Contexto general en [00-general.md](00-general.md).
 
 ## Qué hace
 

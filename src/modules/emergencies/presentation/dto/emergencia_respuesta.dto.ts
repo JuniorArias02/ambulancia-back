@@ -11,6 +11,8 @@ import {
   PRIORIDADES_EMERGENCIA,
   type PrioridadEmergencia,
   TIPOS_INCIDENTE,
+  MODALIDADES_SERVICIO,
+  type ModalidadServicio,
   type TipoIncidente,
 } from '../../domain/entities/emergencia.entity.js';
 import type {
@@ -55,6 +57,13 @@ export class EmergenciaRespuestaDto {
 
   @ApiPropertyOptional({ enum: TIPOS_INCIDENTE, nullable: true })
   tipoIncidente: TipoIncidente | null;
+
+  @ApiProperty({
+    enum: MODALIDADES_SERVICIO,
+    description:
+      'Qué tipo de servicio es (define las firmas que exige la historia clínica)',
+  })
+  modalidad: ModalidadServicio;
 
   @ApiPropertyOptional({ enum: PRIORIDADES_EMERGENCIA, nullable: true })
   prioridad: PrioridadEmergencia | null;
@@ -117,6 +126,7 @@ export class EmergenciaRespuestaDto {
       informanteTelefono: emergencia.informanteTelefono,
       descripcion: emergencia.descripcion,
       tipoIncidente: emergencia.tipoIncidente,
+      modalidad: emergencia.modalidad,
       prioridad: emergencia.prioridad,
       direccion: emergencia.direccion,
       referenciaLugar: emergencia.referenciaLugar,

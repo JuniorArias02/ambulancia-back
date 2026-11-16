@@ -67,8 +67,12 @@ model Usuario {
   emergenciasReportadas             Emergencia[]                @relation("EmergenciaInformante")
   historiasCreadas                  HistoriaClinica[]           @relation("HistoriaCreadaPor")
   historiasCerradas                 HistoriaClinica[]           @relation("HistoriaCerradaPor")
+  firmas                            FirmaUsuario[]              @relation("FirmasDelUsuario")
+  firmasHistoriaTomadas             FirmaHistoria[]             @relation("FirmaHistoriaTomadaPor")
+  firmasDesactivadas                FirmaUsuario[]              @relation("FirmaDesactivadaPor")
   signosVitales                     SignoVital[]
   intervenciones                    Intervencion[]
+  valoracionesDownton               ValoracionDownton[]
   grabaciones                       Grabacion[]
   listasChequeoCreadas              ListaChequeo[]
   chequeosDiarios                   ChequeoDiario[]
@@ -211,6 +215,10 @@ model Emergencia {
   descripcion           String    @db.Text
   /// accidente_transito, caida, arma, quemadura, clinico, otro
   tipoIncidente         String?   @map("tipo_incidente") @db.VarChar(60)
+  /// Qué tipo de servicio es (lo elige el despachador): emergencia,
+  /// accidente_transito, traslado_programado, traslado_interhospitalario,
+  /// atencion_en_sitio. Define qué firmas exige la historia clínica.
+  modalidad             String    @default("emergencia") @db.VarChar(40)
   /// roja, amarilla, verde
   prioridad             String?   @db.VarChar(30)
   direccion             String?   @db.VarChar(255)
@@ -239,6 +247,8 @@ model Emergencia {
   historiasClinicas HistoriaClinica[]
 
   @@index([informanteUsuarioId, recibidaEn])
+  // Consulta clínica web: ingresos por fecha
+  @@index([recibidaEn])
   @@map("emergencias")
 }
 
@@ -458,6 +468,8 @@ model HistoriaClinica {
   edadAproximada       Int?      @map("edad_aproximada")
   fechaNacimiento      DateTime? @map("fecha_nacimiento") @db.Date
   aseguradoraEps       String?   @map("aseguradora_eps") @db.VarChar(120)
+  /// contributivo, subsidiado, especial_excepcion, no_afiliado
+  regimenAfiliacion    String?   @map("regimen_afiliacion") @db.VarChar(30)
   acompananteNombre    String?   @map("acompanante_nombre") @db.VarChar(150)
   acompananteTelefono  String?   @map("acompanante_telefono") @db.VarChar(30)
 
@@ -516,6 +528,10 @@ model HistoriaClinica {
   cerradaPorId   String?   @map("cerrada_por_id") @db.Char(36)
   /// hash del contenido al firmar; despues de cerrada no se edita, solo se anula
   hashCierre     String?   @map("hash_cierre") @db.VarChar(255)
+  /// versión exacta de la firma registrada que se estampó al cerrar
+  firmaCierreId  String?   @map("firma_cierre_id") @db.Char(36)
+  /// Índice de pacientes: se enlaza cuando la historia tiene tipo y número de documento
+  pacienteId     String?   @map("paciente_id") @db.Char(36)
   abiertaEn      DateTime  @default(now()) @map("abierta_en") @db.DateTime(3)
   cerradaEn      DateTime? @map("cerrada_en") @db.DateTime(3)
   /// cuando llegó al servidor desde el celular
@@ -526,15 +542,25 @@ model HistoriaClinica {
   institucionDestino InstitucionSalud?   @relation(fields: [institucionDestinoId], references: [id])
   creadaPor          Usuario             @relation("HistoriaCreadaPor", fields: [creadaPorId], references: [id])
   cerradaPor         Usuario?            @relation("HistoriaCerradaPor", fields: [cerradaPorId], references: [id])
+  /// Restrict: una firma usada en una historia nunca se borra
+  firmaCierre        FirmaUsuario?       @relation(fields: [firmaCierreId], references: [id], onDelete: Restrict)
+  paciente           Paciente?           @relation(fields: [pacienteId], references: [id], onDelete: Restrict)
 
-  signosVitales  SignoVital[]
-  lesiones       Lesion[]
-  intervenciones Intervencion[]
-  grabaciones    Grabacion[]
+  signosVitales       SignoVital[]
+  lesiones            Lesion[]
+  intervenciones      Intervencion[]
+  grabaciones         Grabacion[]
+  valoracionesDownton ValoracionDownton[]
+  firmas              FirmaHistoria[]
 
   @@index([emergenciaId])
   @@index([numeroDocumento])
   @@index([estado, abiertaEn])
+  // Consulta clínica web: por fecha (atención, evento, cierre) y por nombre
+  @@index([abiertaEn])
+  @@index([horaEvento])
+  @@index([cerradaEn])
+  @@index([apellidos, nombres])
   @@map("historias_clinicas")
 }
 
@@ -617,6 +643,58 @@ model Intervencion {
   @@map("intervenciones")
 }
 
+// Escala de riesgo de caídas J.H. Downton. Opcional dentro de la historia;
+// una serie (se puede repetir). Puntaje >= 3 => riesgo alto.
+model ValoracionDownton {
+  id                String   @id @default(uuid()) @db.Char(36)
+  historiaClinicaId String   @map("historia_clinica_id") @db.Char(36)
+  evaluadaEn        DateTime @map("evaluada_en") @db.DateTime(3)
+
+  // --- Caídas previas ---
+  caidasPrevias Boolean @default(false) @map("caidas_previas")
+
+  // --- Medicamentos (multiselección, 1 punto c/u; ninguno marcado = "ninguno") ---
+  medTranquilizantesSedantes Boolean @default(false) @map("med_tranquilizantes_sedantes")
+  medDiureticos              Boolean @default(false) @map("med_diureticos")
+  medHipotensores            Boolean @default(false) @map("med_hipotensores")
+  medAntiparkinsonianos      Boolean @default(false) @map("med_antiparkinsonianos")
+  medAntidepresivos          Boolean @default(false) @map("med_antidepresivos")
+  medOtros                   Boolean @default(false) @map("med_otros")
+
+  // --- Déficits sensoriales (multiselección, 1 punto c/u) ---
+  deficitVisual       Boolean @default(false) @map("deficit_visual")
+  deficitAuditivo     Boolean @default(false) @map("deficit_auditivo")
+  /// ictus, paresias, amputaciones...
+  deficitExtremidades Boolean @default(false) @map("deficit_extremidades")
+
+  // --- Selección única ---
+  /// orientado, confuso
+  estadoMental String @map("estado_mental") @db.VarChar(20)
+  /// normal, segura_con_ayuda, insegura, imposible
+  deambulacion String @db.VarChar(30)
+
+  // --- Resultado (calculado en el backend, snapshot) ---
+  puntajeTotal Int    @map("puntaje_total") @db.TinyInt
+  /// bajo, alto
+  nivelRiesgo  String @map("nivel_riesgo") @db.VarChar(10)
+
+  observacion     String?  @db.VarChar(255)
+  /// manual, voz
+  origen          String   @default("manual") @db.VarChar(20)
+  segmentoAudioId String?  @map("segmento_audio_id") @db.Char(36)
+  /// true si es manual o si el paramedico aceptó la propuesta de la voz
+  confirmado      Boolean  @default(false)
+  registradoPorId String   @map("registrado_por_id") @db.Char(36)
+  creadaEn        DateTime @default(now()) @map("creada_en") @db.DateTime(3)
+
+  historiaClinica HistoriaClinica @relation(fields: [historiaClinicaId], references: [id])
+  segmentoAudio   SegmentoAudio?  @relation(fields: [segmentoAudioId], references: [id])
+  registradoPor   Usuario         @relation(fields: [registradoPorId], references: [id])
+
+  @@index([historiaClinicaId, evaluadaEn])
+  @@map("valoraciones_downton")
+}
+
 // Escucha continua: una grabación por atención, guardada por trozos
 // en el celular mientras se graba (no al final) y subida cuando hay señal
 model Grabacion {
@@ -657,12 +735,116 @@ model SegmentoAudio {
 
   grabacion Grabacion @relation(fields: [grabacionId], references: [id])
 
-  signosVitales  SignoVital[]
-  lesiones       Lesion[]
-  intervenciones Intervencion[]
+  signosVitales       SignoVital[]
+  lesiones            Lesion[]
+  intervenciones      Intervencion[]
+  valoracionesDownton ValoracionDownton[]
 
   @@unique([grabacionId, orden])
   @@map("segmentos_audio")
+}
+
+// ---------------------------------------------------------------------------
+// Firmas: firma registrada de cada profesional
+// ---------------------------------------------------------------------------
+
+/// Imagen cifrada en almacenamiento privado; aquí solo la referencia. Cambiarla
+/// crea una fila nueva: las historias conservan la versión que estamparon.
+model FirmaUsuario {
+  id                  String    @id @default(uuid()) @db.Char(36)
+  usuarioId           String    @map("usuario_id") @db.Char(36)
+  /// Nombre interno del archivo cifrado; nunca una ruta ni el nombre original
+  claveAlmacenamiento String    @unique @map("clave_almacenamiento") @db.VarChar(100)
+  /// De la imagen antes de cifrarla (image/png)
+  tipoMime            String    @map("tipo_mime") @db.VarChar(50)
+  tamanoBytes         Int       @map("tamano_bytes")
+  anchoPx             Int       @map("ancho_px") @db.SmallInt
+  altoPx              Int       @map("alto_px") @db.SmallInt
+  huellaSha256        String    @map("huella_sha256") @db.Char(64)
+  /// Solo una vigente por usuario
+  vigente             Boolean   @default(true)
+  registradaEn        DateTime  @map("registrada_en") @db.DateTime(3)
+  /// Cuando el mismo usuario registró otra
+  reemplazadaEn       DateTime? @map("reemplazada_en") @db.DateTime(3)
+  /// Cuando el administrador la desactivó
+  desactivadaEn       DateTime? @map("desactivada_en") @db.DateTime(3)
+  desactivadaPorId    String?   @map("desactivada_por_id") @db.Char(36)
+  motivoDesactivacion String?   @map("motivo_desactivacion") @db.VarChar(255)
+
+  usuario        Usuario  @relation("FirmasDelUsuario", fields: [usuarioId], references: [id])
+  desactivadaPor Usuario? @relation("FirmaDesactivadaPor", fields: [desactivadaPorId], references: [id])
+
+  historiasCerradas HistoriaClinica[]
+
+  @@index([usuarioId, vigente])
+  @@map("firmas_usuarios")
+}
+
+/// Índice de pacientes (consulta clínica): une las atenciones de la misma
+/// persona. Cada historia conserva su propia copia de los datos del paciente
+/// tal como estaban en la atención; aquí quedan los más recientes.
+model Paciente {
+  id              String    @id @default(uuid()) @db.Char(36)
+  tipoDocumento   String    @map("tipo_documento") @db.VarChar(30)
+  /// Normalizado igual que en la historia (sin puntos, guiones ni espacios)
+  numeroDocumento String    @map("numero_documento") @db.VarChar(40)
+  nombres         String?   @db.VarChar(150)
+  apellidos       String?   @db.VarChar(150)
+  /// masculino, femenino, indeterminado
+  sexo            String?   @db.VarChar(20)
+  fechaNacimiento DateTime? @map("fecha_nacimiento") @db.Date
+  creadoEn        DateTime  @default(now()) @map("creado_en") @db.DateTime(3)
+  actualizadoEn   DateTime  @updatedAt @map("actualizado_en") @db.DateTime(3)
+
+  historias HistoriaClinica[]
+
+  @@unique([tipoDocumento, numeroDocumento])
+  @@index([apellidos, nombres])
+  @@map("pacientes")
+}
+
+/// Firmas de quienes no son usuarios: paciente, acudiente, testigo y receptor.
+/// La del profesional que cierra está en historias_clinicas.firma_cierre_id.
+/// Con imagen (cifrada, como firmas_usuarios) o, solo el paciente, con el
+/// motivo por el que nadie pudo firmar.
+model FirmaHistoria {
+  /// UUID generado en el celular: se puede firmar sin señal sin duplicar
+  id                  String   @id @default(uuid()) @db.Char(36)
+  historiaClinicaId   String   @map("historia_clinica_id") @db.Char(36)
+  /// paciente, acudiente, testigo, receptor
+  rolFirmante         String   @map("rol_firmante") @db.VarChar(20)
+  /// comprobante_atencion, disentimiento, entrega
+  proposito           String   @db.VarChar(30)
+  /// Del paciente: copia de la historia al firmar
+  nombreFirmante      String?  @map("nombre_firmante") @db.VarChar(150)
+  tipoDocumento       String?  @map("tipo_documento") @db.VarChar(30)
+  numeroDocumento     String?  @map("numero_documento") @db.VarChar(40)
+  /// Solo acudiente (familiar mayor de edad)
+  parentesco          String?  @db.VarChar(30)
+  /// Solo receptor
+  cargo               String?  @db.VarChar(100)
+  claveAlmacenamiento String?  @unique @map("clave_almacenamiento") @db.VarChar(100)
+  tipoMime            String?  @map("tipo_mime") @db.VarChar(50)
+  tamanoBytes         Int?     @map("tamano_bytes")
+  anchoPx             Int?     @map("ancho_px") @db.SmallInt
+  altoPx              Int?     @map("alto_px") @db.SmallInt
+  huellaSha256        String?  @map("huella_sha256") @db.Char(64)
+  /// Sin imagen (solo paciente): inconsciente_sin_acudiente, fallecido, se_nego, otro
+  motivoSinFirma      String?  @map("motivo_sin_firma") @db.VarChar(30)
+  detalleMotivo       String?  @map("detalle_motivo") @db.VarChar(255)
+  /// Versión del texto que aceptó (comprobante, disentimiento, entrega)
+  textoVersion        String   @map("texto_version") @db.VarChar(10)
+  firmadaEn           DateTime @map("firmada_en") @db.DateTime(3)
+  /// Profesional que tomó la firma en el celular
+  registradaPorId     String   @map("registrada_por_id") @db.Char(36)
+  creadaEn            DateTime @default(now()) @map("creada_en") @db.DateTime(3)
+
+  historiaClinica HistoriaClinica @relation(fields: [historiaClinicaId], references: [id])
+  registradaPor   Usuario         @relation("FirmaHistoriaTomadaPor", fields: [registradaPorId], references: [id])
+
+  /// Una por rol y propósito: para cambiarla, se quita y se toma de nuevo
+  @@unique([historiaClinicaId, proposito, rolFirmante])
+  @@map("firmas_historia")
 }
 
 // ---------------------------------------------------------------------------

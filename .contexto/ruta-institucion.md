@@ -1,6 +1,6 @@
 # Destino del traslado y ruta al hospital
 
-> Contexto general en [00-general.md](00-general.md). Módulo de rutas en [rutas.md](rutas.md). Guía para Flutter: `docs/RUTA_INSTITUCION_FLUTTER.md`.
+> Contexto general en [00-general.md](00-general.md). Módulo de rutas en [rutas.md](rutas.md).
 > Implementado y verificado el 2026-11-02.
 
 ## Reglas de negocio (confirmadas por el usuario)

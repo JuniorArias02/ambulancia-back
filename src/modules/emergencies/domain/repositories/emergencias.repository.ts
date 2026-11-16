@@ -8,6 +8,7 @@ import type {
   EstadoEmergencia,
   PrioridadEmergencia,
   TipoIncidente,
+  ModalidadServicio,
 } from '../entities/emergencia.entity.js';
 
 export interface FiltrosEmergencias {
@@ -17,6 +18,7 @@ export interface FiltrosEmergencias {
   soloActivas?: boolean;
   prioridad?: PrioridadEmergencia;
   tipoIncidente?: TipoIncidente;
+  modalidad?: ModalidadServicio;
   desde?: Date;
   hasta?: Date;
   /** Solo las que reportó ese ciudadano. */

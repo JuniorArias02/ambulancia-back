@@ -1,6 +1,6 @@
 # Módulo de asignaciones (`src/modules/assignments`)
 
-> Contexto general en [00-general.md](00-general.md). Guía para frontend: `docs/api-despacho-frontend.md` (sección 4).
+> Contexto general en [00-general.md](00-general.md).
 
 ## Qué hace
 
@@ -106,8 +106,6 @@ Ciclo: `asignada → en_camino → en_escena → atendiendo → trasladando → 
 - a 50 m → `200`; doble toque → `200`/`200` con un solo evento;
 - atendiendo, trasladando y finalizada → `200`, y el WebSocket vio los 5 cambios de estado;
 - línea de tiempo con responsables y roles; otra tripulación → `403`.
-
-Guías: `docs/api-ciclo-atencion-app.md` (Flutter) y `docs/api-ciclo-atencion-web.md` (web).
 
 ## Pendiente
 

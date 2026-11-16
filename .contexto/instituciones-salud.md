@@ -1,6 +1,6 @@
 # Instituciones de salud (`src/modules/prehospital_care`)
 
-> Contexto general en [00-general.md](00-general.md). Guía para frontend: `docs/api-despacho-frontend.md` (sección 6).
+> Contexto general en [00-general.md](00-general.md).
 
 ## Qué hace
 

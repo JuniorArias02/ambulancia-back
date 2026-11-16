@@ -1,6 +1,6 @@
 # Módulo de autenticación (`src/modules/authentication`)
 
-> Contexto general en [00-general.md](00-general.md). Guía para frontend: `docs/api-usuarios-roles-frontend.md` (sección 2).
+> Contexto general en [00-general.md](00-general.md).
 
 ## Qué hace
 
@@ -80,4 +80,15 @@ La regla vive en el caso de uso `IniciarSesion`: cada acceso recibe un predicado
   - `acceso_no_corresponde_al_rol`
   - `usuario_<estado>`
 - **Motivo del cambio:** un ciudadano podía entrar al login del personal de la app con su correo y terminaba en la vista ciudadana.
+
+## Restablecer la contraseña por el administrador (2026-11-13)
+
+`PUT /usuarios/{id}/contrasena { contrasenaNueva }` → `204`. Solo el rol `administrador`, con un límite de 10 solicitudes por minuto.
+
+- **Dónde vive:** el caso de uso `RestablecerContrasena` y el `ContrasenasUsuariosController` están en `authentication`, porque es el dueño de `SesionesRepositorio`. Ponerlo en `users` crearía una dependencia circular, ya que `authentication` importa `UsersModule`. La ruta cuelga de `/usuarios` junto a las demás acciones del administrador.
+- **Qué hace:** no pide la contraseña actual. Aplica la misma `POLITICA_CONTRASENA` (de 10 a 128 caracteres, con letra y número) y **revoca todas las sesiones** del usuario.
+- **Su propia cuenta no:** responde `422`. Para la propia se usa `PATCH /autenticacion/contrasena`, que exige la actual, para que una sesión robada no pueda quedarse con la cuenta.
+- **Auditoría:** `restablecer_contrasena`, con el administrador como actor y `{ rolUsuario, sesionesCerradas }`. **Nunca** guarda la contraseña ni su hash.
+- **No compara con la contraseña actual:** el administrador no la conoce, y comparar le revelaría si acertó.
+- **Pruebas:** 4 unitarias y 15 comprobaciones HTTP reales. La sesión abierta del usuario queda en `401`, la contraseña anterior no entra y la nueva sí.
 

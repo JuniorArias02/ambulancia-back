@@ -1,6 +1,6 @@
 # Módulo de geocodificación (`src/modules/geocoding`)
 
-> Contexto general en [00-general.md](00-general.md). Guía para frontend: `docs/api-geocodificacion-frontend.md`.
+> Contexto general en [00-general.md](00-general.md).
 
 ## Qué hace
 

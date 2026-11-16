@@ -1,6 +1,6 @@
 # Módulo de ubicaciones (`src/modules/locations`)
 
-> Contexto general en [00-general.md](00-general.md). Guía para frontend: `docs/api-despacho-frontend.md` (sección 5).
+> Contexto general en [00-general.md](00-general.md).
 
 ## Qué hace
 

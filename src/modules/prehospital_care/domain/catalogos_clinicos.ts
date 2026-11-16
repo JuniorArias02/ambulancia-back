@@ -41,6 +41,15 @@ export const ROLES_VICTIMA = [
 ] as const;
 export type RolVictima = (typeof ROLES_VICTIMA)[number];
 
+/** Régimen de afiliación al sistema de salud (dato básico que pide la EPS). */
+export const REGIMENES_AFILIACION = [
+  'contributivo',
+  'subsidiado',
+  'especial_excepcion',
+  'no_afiliado',
+] as const;
+export type RegimenAfiliacion = (typeof REGIMENES_AFILIACION)[number];
+
 export const TRIAGES = ['rojo', 'amarillo', 'verde', 'negro'] as const;
 export type Triage = (typeof TRIAGES)[number];
 
@@ -82,3 +91,22 @@ export type TipoLesion = (typeof TIPOS_LESION)[number];
 
 export const TIPOS_INTERVENCION = ['procedimiento', 'medicamento'] as const;
 export type TipoIntervencion = (typeof TIPOS_INTERVENCION)[number];
+
+/** Escala de riesgo de caídas J.H. Downton: selección única. */
+export const ESTADOS_MENTALES = ['orientado', 'confuso'] as const;
+export type EstadoMental = (typeof ESTADOS_MENTALES)[number];
+
+export const DEAMBULACIONES = [
+  'normal',
+  'segura_con_ayuda',
+  'insegura',
+  'imposible',
+] as const;
+export type Deambulacion = (typeof DEAMBULACIONES)[number];
+
+export const NIVELES_RIESGO_CAIDA = ['bajo', 'alto'] as const;
+export type NivelRiesgoCaida = (typeof NIVELES_RIESGO_CAIDA)[number];
+
+/** De dónde salió un registro clínico: digitado o propuesto por la escucha de voz. */
+export const ORIGENES_REGISTRO = ['manual', 'voz'] as const;
+export type OrigenRegistro = (typeof ORIGENES_REGISTRO)[number];

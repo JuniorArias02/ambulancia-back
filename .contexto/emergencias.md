@@ -1,6 +1,6 @@
 # Módulo de emergencias (`src/modules/emergencies`)
 
-> Contexto general en [00-general.md](00-general.md). Guía para frontend: `docs/api-emergencias-frontend.md`.
+> Contexto general en [00-general.md](00-general.md).
 
 ## Qué hace
 
@@ -126,3 +126,11 @@ test/dobles/emergencias_memoria.ts   (EmergenciasMemoria con colisionesPendiente
 - **Asignaciones** (`asignaciones_servicio`): despachar una ambulancia `disponible` a una emergencia `recibida`. La emergencia pasa a `despachada` → `en_atencion` → `cerrada` y la ambulancia a `en_servicio`. Para eso hay que agregar en la entidad los métodos `despachar()`, `iniciarAtencion()` y `cerrar()`.
 - Notificar en tiempo real (WebSocket) cuando entra una emergencia nueva.
 - Decidir si se agrega la columna `motivo_cancelacion` a `emergencias`.
+
+## Modalidad del servicio (2026-11-15)
+
+`modalidad` (por defecto `emergencia`) dice qué tipo de servicio es y define qué firmas exige la historia clínica al cerrar: ver [firmas.md](firmas.md).
+- El despachador la elige al crear o editar; en el `PATCH` no admite `null`.
+- Se puede filtrar por ella.
+- Los campos obligatorios del `PATCH` (`fuente`, `descripcion`, `modalidad`) usan `SiSeEnvia`, así un `null` responde `400` en lugar de 500.
+

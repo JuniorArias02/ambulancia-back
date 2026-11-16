@@ -1,6 +1,6 @@
 # Módulo de usuarios y roles (`src/modules/users`)
 
-> Contexto general en [00-general.md](00-general.md). Guía para frontend: `docs/api-usuarios-roles-frontend.md`.
+> Contexto general en [00-general.md](00-general.md).
 
 ## Qué hace
 
@@ -30,6 +30,7 @@ Fijos, definidos en `src/common/constants/roles.ts` y sincronizados por el seed 
 | GET | `/usuarios/{id}` | `ObtenerUsuario` | Detalle |
 | PATCH | `/usuarios/{id}` | `ActualizarUsuario` | Editar nombres, apellidos y teléfono |
 | PUT | `/usuarios/{id}/rol` | `AsignarRolUsuario` | Cambiar el rol |
+| PUT | `/usuarios/{id}/contrasena` | `RestablecerContrasena` (módulo **authentication**, controlador `ContrasenasUsuariosController`) | El administrador asigna una contraseña nueva. Ver [autenticacion.md](autenticacion.md) |
 | PATCH | `/usuarios/{id}/estado` | `CambiarEstadoUsuario` | Activar, inactivar o bloquear (con `motivo`) |
 
 ## Entidad `Usuario`

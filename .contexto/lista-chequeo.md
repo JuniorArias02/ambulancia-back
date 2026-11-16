@@ -54,8 +54,6 @@ Reglas agregadas:
 | Conductor | conductor | `GET/POST /mi-chequeo-diario`, `PUT /mi-chequeo-diario/respuestas`, `POST /mi-chequeo-diario/finalizar`, `GET /mi-chequeo-diario/historial`, `GET /mi-chequeo-diario/historial/{id}` |
 | Historial | administrador, despachador | `GET /chequeos-diarios`, `GET /chequeos-diarios/{id}` |
 
-Contratos completos: `docs/LISTA_CHEQUEO_FLUTTER.md` (conductor) y `docs/LISTA_CHEQUEO_FRONTEND.md` (web).
-
 ## Concurrencia
 
 - **Iniciar es idempotente:** si choca con `uk_chequeo_diario` (`P2002`), devuelve el existente. Probado: 5 inicios simultáneos crean 1 chequeo.
@@ -86,7 +84,7 @@ El usuario escribió los pasos 1 y 2 a partir de la guía. Al revisarlos se enco
 
 ## Pendiente
 
-- La web no tiene aún las pantallas de configuración ni de historial (`docs/LISTA_CHEQUEO_FRONTEND.md`).
-- La app no tiene aún la pantalla del conductor (`docs/LISTA_CHEQUEO_FLUTTER.md`).
+- La web no tiene aún las pantallas de configuración ni de historial.
+- La app no tiene aún la pantalla del conductor.
 - ¿Exigir el chequeo finalizado antes de poder despachar la ambulancia? Hoy son independientes; es una decisión de negocio.
 - Si se necesita, calcular puntajes con `valor` de las opciones (hoy solo se guarda).

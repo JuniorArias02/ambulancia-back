@@ -48,7 +48,7 @@ Turnos y asignaciones los necesitan **las dos apps**, así que avanzan la web y 
 | 4 | **Historia clínica** | Consulta (administrador) | La llenan los paramédicos | ✅ Hecho (manual; la voz queda pendiente) |
 | 5 | **Tiempo real** (WebSocket) | Emergencias nuevas y movimiento de las ambulancias | Aviso de nueva asignación | ✅ Hecho |
 
-> Tiempo real: servidor aparte en `../../webSocket` con un puente HTTP interno desde la API. Detalle en [tiempo-real.md](tiempo-real.md) y contrato para los clientes en `docs/api-tiempo-real-frontend.md`.
+> Tiempo real: servidor aparte en `../../webSocket` con un puente HTTP interno desde la API. Detalle y contrato para los clientes en [tiempo-real.md](tiempo-real.md).
 
 **Con los pasos 1 y 2 terminados ya pueden empezar la app Flutter**: login, ver la emergencia asignada en el mapa, trazar la ruta y marcar el avance. La historia clínica (paso 4) se agrega después sin bloquear nada.
 

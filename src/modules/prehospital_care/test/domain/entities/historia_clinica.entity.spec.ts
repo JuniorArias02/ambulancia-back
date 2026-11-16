@@ -71,7 +71,8 @@ describe('HistoriaClinica', () => {
       historia.cerrar({
         cerradaPorId: 'p1',
         fecha: new Date(),
-        hash: 'abc',
+        firmaCierre: null,
+        calcularHuella: () => 'abc',
         registros: { signosVitales: 1 },
       });
     expect(cerrar).toThrow(/Para cerrar la historia falta: triage, desenlace/);

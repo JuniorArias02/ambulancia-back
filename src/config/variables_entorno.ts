@@ -8,12 +8,16 @@ import {
   IsString,
   IsUrl,
   Matches,
+  MaxLength,
   Max,
   Min,
   MinLength,
   ValidateIf,
   validateSync,
 } from 'class-validator';
+
+/** 32 bytes en base64: 43 caracteres más un `=`. */
+const PATRON_CLAVE_AES = /^[A-Za-z0-9+/]{43}=$/;
 
 export class VariablesEntorno {
   @IsIn(['development', 'test', 'production'])
@@ -126,6 +130,55 @@ export class VariablesEntorno {
   @IsString()
   @IsNotEmpty()
   ALMACENAMIENTO_PRIVADO_RUTA?: string;
+
+  /**
+   * Clave AES-256 (32 bytes en base64) con la que se cifran las imágenes de
+   * las firmas. Obligatoria en producción. Si se pierde, las firmas quedan
+   * ilegibles: guárdela fuera del servidor. Genérela con
+   * `openssl rand -base64 32`.
+   */
+  @ValidateIf(
+    (variables: VariablesEntorno) =>
+      variables.NODE_ENV === 'production' || !!variables.FIRMAS_CLAVE_CIFRADO,
+  )
+  @Matches(PATRON_CLAVE_AES, {
+    message: 'FIRMAS_CLAVE_CIFRADO debe ser 32 bytes en base64 (44 caracteres)',
+  })
+  FIRMAS_CLAVE_CIFRADO?: string;
+
+  /** Versión de FIRMAS_CLAVE_CIFRADO; se sube al rotar la clave. Por defecto 1. */
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(255)
+  FIRMAS_CLAVE_VERSION?: number;
+
+  /**
+   * Claves anteriores, solo para leer firmas cifradas antes de una rotación:
+   * `version:clave,version:clave`. Vacía si nunca se ha rotado.
+   */
+  @ValidateIf(
+    (variables: VariablesEntorno) => !!variables.FIRMAS_CLAVES_ANTERIORES,
+  )
+  @Matches(/^\d{1,3}:[A-Za-z0-9+/]{43}=(,\d{1,3}:[A-Za-z0-9+/]{43}=)*$/, {
+    message: 'FIRMAS_CLAVES_ANTERIORES debe ser "version:clave,version:clave"',
+  })
+  FIRMAS_CLAVES_ANTERIORES?: string;
+
+  /**
+   * `true` (por defecto): para cerrar una historia, el profesional debe tener
+   * su firma registrada. `false` solo durante la transición, mientras todos
+   * la registran.
+   */
+  @IsOptional()
+  @IsIn(['true', 'false'])
+  FIRMA_CIERRE_OBLIGATORIA?: 'true' | 'false';
+
+  /** Nombre de la empresa en los documentos (PDF de la historia). Por defecto "Ambulancias Galenos". */
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  NOMBRE_EMPRESA?: string;
 
   /**
    * Servidor de tiempo real (proyecto `webSocket/`). Opcional: sin URL o sin

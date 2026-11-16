@@ -12,6 +12,7 @@ import {
   ESTADOS_EMERGENCIA,
   type EstadoEmergencia,
   FUENTES_EMERGENCIA,
+  MODALIDADES_SERVICIO,
   ORIGENES_UBICACION,
   PRIORIDADES_EMERGENCIA,
   TIPOS_INCIDENTE,
@@ -30,6 +31,7 @@ const seleccionEmergencia = {
   informanteTelefono: true,
   descripcion: true,
   tipoIncidente: true,
+  modalidad: true,
   prioridad: true,
   direccion: true,
   referenciaLugar: true,
@@ -86,6 +88,7 @@ export class PrismaEmergenciasRepositorio extends EmergenciasRepositorio {
         (filtros.soloActivas ? { in: [...ESTADOS_ACTIVOS] } : undefined),
       prioridad: filtros.prioridad,
       tipoIncidente: filtros.tipoIncidente,
+      modalidad: filtros.modalidad,
       informanteUsuarioId: filtros.informanteUsuarioId,
       recibidaEn:
         filtros.desde || filtros.hasta
@@ -203,6 +206,7 @@ export class PrismaEmergenciasRepositorio extends EmergenciasRepositorio {
       informanteTelefono: emergencia.informanteTelefono,
       descripcion: emergencia.descripcion,
       tipoIncidente: emergencia.tipoIncidente,
+      modalidad: emergencia.modalidad,
       prioridad: emergencia.prioridad,
       direccion: emergencia.direccion,
       referenciaLugar: emergencia.referenciaLugar,
@@ -226,6 +230,11 @@ export class PrismaEmergenciasRepositorio extends EmergenciasRepositorio {
         registro.tipoIncidente === null
           ? null
           : this.validar(TIPOS_INCIDENTE, registro.tipoIncidente, 'tipo'),
+      modalidad: this.validar(
+        MODALIDADES_SERVICIO,
+        registro.modalidad,
+        'modalidad',
+      ),
       prioridad:
         registro.prioridad === null
           ? null

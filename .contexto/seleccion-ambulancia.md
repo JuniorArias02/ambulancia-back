@@ -1,6 +1,6 @@
 # Selección de ambulancia por la tripulación
 
-> Contexto general en [00-general.md](00-general.md). Modelo de turnos en [turnos.md](turnos.md). Guías para los clientes: `docs/instrucciones-agente-flutter.md` y `docs/instrucciones-agente-frontend.md`.
+> Contexto general en [00-general.md](00-general.md). Modelo de turnos en [turnos.md](turnos.md).
 > Implementado y verificado el 2026-11-01.
 
 ## Lógica de negocio
@@ -143,6 +143,6 @@ Sin eventos nuevos, así que `webSocket/` no cambia: se usan `turno.actualizado`
 
 1. **Relevo durante un servicio: ya no existe.** Antes la central podía cambiar la tripulación con `PUT /turnos/{id}/integrantes`. Si al conductor se le daña el celular en camino, nadie más puede confirmar la llegada (solo el conductor del turno) y `cancelar` solo aplica en `asignada` y `en_camino`. Ya existía un riesgo parecido sin que la central pudiera confirmar la llegada; ahora tampoco hay relevo. **Pendiente de decisión de negocio.**
 2. **Usuario inactivado con turno abierto:** sigue ocupando el cupo hasta que la central cierre el turno. No se cierra automáticamente (igual que antes).
-3. **`docs/guia-modulo-ambulancias.md`** indica que crear y editar es solo del administrador; prevalece la regla nueva y se dejó una nota allí.
+3. **Crear y editar ambulancias:** la guía original de construcción decía que era solo del administrador; prevalece la regla nueva.
 4. **Una ambulancia en mantenimiento con tripulación:** la central puede ponerla así con gente adentro (igual que antes). La tripulación sigue en el turno y puede salir.
 5. **Cierre manual y regreso:** si la central saca una ambulancia a `fuera_servicio` con tripulación completa, debe volver a habilitarla ella; la app no la reactiva.

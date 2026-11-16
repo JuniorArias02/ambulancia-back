@@ -18,6 +18,20 @@ export const TIPOS_INCIDENTE = [
 ] as const;
 export type TipoIncidente = (typeof TIPOS_INCIDENTE)[number];
 
+/**
+ * Qué tipo de servicio es. No es el tipo de ambulancia (TAB o TAM): un
+ * traslado programado puede ir en cualquiera de las dos. Define qué firmas
+ * exige la historia clínica (prehospital_care/domain/politicas_firma.ts).
+ */
+export const MODALIDADES_SERVICIO = [
+  'emergencia',
+  'accidente_transito',
+  'traslado_programado',
+  'traslado_interhospitalario',
+  'atencion_en_sitio',
+] as const;
+export type ModalidadServicio = (typeof MODALIDADES_SERVICIO)[number];
+
 export const PRIORIDADES_EMERGENCIA = ['roja', 'amarilla', 'verde'] as const;
 export type PrioridadEmergencia = (typeof PRIORIDADES_EMERGENCIA)[number];
 
@@ -57,6 +71,7 @@ export interface PropiedadesEmergencia {
   informanteTelefono: string | null;
   descripcion: string;
   tipoIncidente: TipoIncidente | null;
+  modalidad: ModalidadServicio;
   prioridad: PrioridadEmergencia | null;
   direccion: string | null;
   referenciaLugar: string | null;
@@ -83,6 +98,8 @@ export interface DatosNuevaEmergencia {
   informanteTelefono?: string | null;
   descripcion: string;
   tipoIncidente?: TipoIncidente | null;
+  /** Por defecto `emergencia` (también en los reportes de ciudadanos). */
+  modalidad?: ModalidadServicio;
   prioridad?: PrioridadEmergencia | null;
   direccion?: string | null;
   referenciaLugar?: string | null;
@@ -102,6 +119,7 @@ export interface DatosEditablesEmergencia {
   informanteTelefono?: string | null;
   descripcion?: string;
   tipoIncidente?: TipoIncidente | null;
+  modalidad?: ModalidadServicio;
   prioridad?: PrioridadEmergencia | null;
   direccion?: string | null;
   referenciaLugar?: string | null;
@@ -122,6 +140,7 @@ export class Emergencia {
       informanteTelefono: Emergencia.limpiar(datos.informanteTelefono),
       descripcion: Emergencia.validarDescripcion(datos.descripcion),
       tipoIncidente: datos.tipoIncidente ?? null,
+      modalidad: datos.modalidad ?? 'emergencia',
       prioridad: datos.prioridad ?? null,
       direccion: Emergencia.limpiar(datos.direccion),
       referenciaLugar: Emergencia.limpiar(datos.referenciaLugar),
@@ -208,6 +227,9 @@ export class Emergencia {
   get tipoIncidente(): TipoIncidente | null {
     return this.propiedades.tipoIncidente;
   }
+  get modalidad(): ModalidadServicio {
+    return this.propiedades.modalidad;
+  }
   get prioridad(): PrioridadEmergencia | null {
     return this.propiedades.prioridad;
   }
@@ -276,6 +298,7 @@ export class Emergencia {
     }
     if (datos.tipoIncidente !== undefined)
       p.tipoIncidente = datos.tipoIncidente;
+    if (datos.modalidad !== undefined) p.modalidad = datos.modalidad;
     if (datos.prioridad !== undefined) p.prioridad = datos.prioridad;
     if (datos.direccion !== undefined) {
       p.direccion = Emergencia.limpiar(datos.direccion);

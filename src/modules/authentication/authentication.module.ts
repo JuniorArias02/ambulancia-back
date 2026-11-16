@@ -6,6 +6,7 @@ import type { VariablesEntorno } from '../../config/variables_entorno.js';
 import { AuditModule } from '../audit/audit.module.js';
 import { UsersModule } from '../users/users.module.js';
 import { CambiarContrasena } from './application/use-cases/cambiar_contrasena.use-case.js';
+import { RestablecerContrasena } from './application/use-cases/restablecer_contrasena.use-case.js';
 import { CerrarSesion } from './application/use-cases/cerrar_sesion.use-case.js';
 import { IniciarSesion } from './application/use-cases/iniciar_sesion.use-case.js';
 import { ObtenerPerfil } from './application/use-cases/obtener_perfil.use-case.js';
@@ -22,6 +23,7 @@ import {
 import { JwtVerificadorTokens } from './infrastructure/services/jwt_verificador_tokens.service.js';
 import { JwtStrategy } from './infrastructure/strategies/jwt.strategy.js';
 import { AutenticacionController } from './presentation/controllers/autenticacion.controller.js';
+import { ContrasenasUsuariosController } from './presentation/controllers/contrasenas_usuarios.controller.js';
 import { SesionesInternasController } from './presentation/controllers/sesiones_internas.controller.js';
 
 @Module({
@@ -37,7 +39,11 @@ import { SesionesInternasController } from './presentation/controllers/sesiones_
       }),
     }),
   ],
-  controllers: [AutenticacionController, SesionesInternasController],
+  controllers: [
+    AutenticacionController,
+    SesionesInternasController,
+    ContrasenasUsuariosController,
+  ],
   providers: [
     { provide: SesionesRepositorio, useClass: PrismaSesionesRepositorio },
     { provide: EmisorTokens, useClass: JwtEmisorTokens },
@@ -48,6 +54,7 @@ import { SesionesInternasController } from './presentation/controllers/sesiones_
     CerrarSesion,
     ObtenerPerfil,
     CambiarContrasena,
+    RestablecerContrasena,
     VerificarSesionToken,
   ],
 })

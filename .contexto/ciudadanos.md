@@ -1,7 +1,7 @@
 # Módulo de ciudadanos (`src/modules/citizens`)
 
-> Contexto general en [00-general.md](00-general.md). Guía para Flutter: `docs/INTEGRACION_MODULO_CIUDADANO_FLUTTER.md`.
-> Implementado y verificado el 2026-11-02. Especificación de origen: `docs/implementacion_ciudadano.md`.
+> Contexto general en [00-general.md](00-general.md).
+> Implementado y verificado el 2026-11-02. La especificación de origen se retiró de `docs/` el 2026-11-15 (sigue en el historial de git).
 
 ## Qué hace
 
@@ -67,7 +67,7 @@ Flujo de la app: cédula → si tiene cuenta, contraseña; si no, registro.
 - **Riesgo aceptado (decisión del usuario):** permite enumerar qué cédulas tienen cuenta, en contra de la recomendación de `arquitectura.md` §7. Mitigaciones: límite de 10 consultas cada 15 min por IP (comprobado: la 11.ª da `429`), sin datos personales en la respuesta y por `POST`, así el documento no queda en URLs ni en logs.
 - **`POST /autenticacion/iniciar-sesion-ciudadano`:** mismo caso de uso del login (`IniciarSesion`) con un método `ejecutarConDocumento`. Conserva el hash ficticio contra diferencias de tiempo, la sesión, la auditoría y el `401` genérico. El personal sigue entrando con correo.
 - **Normalización:** `common/utils/documento_identidad.ts` (`normalizarNumeroDocumento`), compartida con `Ciudadano.normalizarDocumento`.
-- **Pruebas:** 8 unitarias nuevas (293 en total) y 17 comprobaciones HTTP reales sobre una copia temporal de la BD. Guía para Flutter: `docs/ACCESO_CEDULA_CIUDADANO_FLUTTER.md`.
+- **Pruebas:** 8 unitarias nuevas (293 en total) y 17 comprobaciones HTTP reales sobre una copia temporal de la BD.
 
 ## Seguimiento de la ambulancia (2026-11-04)
 
@@ -79,9 +79,8 @@ Flujo de la app: cédula → si tiene cuenta, contraseña; si no, registro.
   - `llegada`: la ruta hacia el lugar que ya calcula `routing` (`ObtenerRutaAsignacion` sin solicitante).
   - Límite: 30 por minuto.
 - **`seguimientoDisponible`** en `ReporteCiudadanoRespuestaDto` (lista y detalle).
-- **Tiempo real:** `NotificadorSeguimientoCiudadano` (módulo `notifications`) escucha `asignacion.creada`, `asignacion.actualizada`, `asignacion.ruta_actualizada` y `ambulancia.ubicacion_actualizada`, con su propio limitador de 3 s. Emite `seguimiento.actualizado` **solo a `usuario:{informante}`**, con el mismo DTO del GET. Las posiciones y las rutas solo se envían si la asignación va hacia el lugar. Los cambios de etapa siempre avisan, así llega el fin (`ambulancia_en_el_lugar` y luego `finalizado`), sin posición. **Pendiente en `webSocket/`:** rol ciudadano y evento en la lista blanca (`docs/WEBSOCKET_SEGUIMIENTO_CIUDADANO.md`). Hasta entonces, la API registra `No se entregó seguimiento.actualizado` en su log.
+- **Tiempo real:** `NotificadorSeguimientoCiudadano` (módulo `notifications`) escucha `asignacion.creada`, `asignacion.actualizada`, `asignacion.ruta_actualizada` y `ambulancia.ubicacion_actualizada`, con su propio limitador de 3 s. Emite `seguimiento.actualizado` **solo a `usuario:{informante}`**, con el mismo DTO del GET. Las posiciones y las rutas solo se envían si la asignación va hacia el lugar. Los cambios de etapa siempre avisan, así llega el fin (`ambulancia_en_el_lugar` y luego `finalizado`), sin posición. **Pendiente en `webSocket/`:** rol ciudadano y evento en la lista blanca (ver [tiempo-real.md](tiempo-real.md)). Hasta entonces, la API registra `No se entregó seguimiento.actualizado` en su log.
 - **Pruebas:** 12 unitarias (305 en total). Prueba real de punta a punta (24 comprobaciones) con despacho, GPS, Geoapify y todas las etapas: al llegar termina; el GPS posterior no llega al ciudadano; los eventos van solo a su sala.
-- **Guías:** `docs/SEGUIMIENTO_AMBULANCIA_CIUDADANO_FLUTTER.md` y `docs/WEBSOCKET_SEGUIMIENTO_CIUDADANO.md`.
 
 ## Estados de verificación (`VerificacionIdentidad`)
 
@@ -179,7 +178,7 @@ Nunca se guardan en la auditoría ni en los logs el número de documento, las fo
 4. **Cambio de documento de un ciudadano ya verificado:** no hay flujo. Hoy solo el administrador puede editar nombres por `/usuarios`; el documento no se cambia.
 5. **Tiempo real para el ciudadano:** el servidor `webSocket/` lo rechaza por rol. Para avisarle cambios de su reporte habría que agregar el rol allí y un evento nuevo. En v1, la app consulta por REST.
 6. **Lista de usuarios en la web:** `GET /usuarios` ahora incluye ciudadanos (rol `ciudadano`). La web debe conocer ese rol y no ofrecerlo en sus formularios.
-7. **Pantallas web del administrador** para revisar verificaciones: el backend está listo, pero la web no las tiene todavía. Guía para el agente del frontend: `docs/VERIFICACION_CIUDADANOS_FRONTEND.md`.
+7. **Pantallas web del administrador** para revisar verificaciones: el backend está listo, pero la web no las tiene todavía.
 8. **Límite de inicio de sesión:** 5 por minuto por IP, como ya existía. Varios ciudadanos detrás de la misma IP de un operador móvil podrían toparse con él.
 9. **Antivirus o reprocesado de imágenes:** solo se valida la firma; no se recodifica la imagen ni se eliminan los metadatos EXIF (que pueden traer ubicación). Conviene evaluarlo.
 10. **Copias de respaldo:** la carpeta privada debe incluirse en los respaldos y protegerse igual que la BD.

@@ -56,7 +56,7 @@ import { MovimientosController } from './presentation/controllers/movimientos.co
 import { PerfilesDotacionController } from './presentation/controllers/perfiles_dotacion.controller.js';
 
 /**
- * Inventario de bodegas y ambulancias (docs/bd-inventario.md). La web
+ * Inventario de bodegas y ambulancias (ver .contexto/inventario.md). La web
  * (administrador y despachador) administra; el paramédico opera el inventario
  * de la ambulancia de su turno desde la app.
  */

@@ -16,6 +16,8 @@ import {
   NumeroHistoriaEnUsoError,
 } from '../../domain/repositories/historias_clinicas.repository.js';
 import { AccesoHistoriaClinica } from '../services/acceso_historia_clinica.service.js';
+import { documentoEnlazable } from '../../domain/pacientes.js';
+import { IndicePacientes } from '../../domain/repositories/indice_pacientes.repository.js';
 
 export interface AbrirHistoriaEntrada {
   /** Generado en el celular para poder trabajar sin señal; si no viene, lo genera el servidor. */
@@ -42,6 +44,7 @@ export class AbrirHistoriaClinica {
     private readonly historiasRepositorio: HistoriasClinicasRepositorio,
     private readonly acceso: AccesoHistoriaClinica,
     private readonly auditoria: AuditoriaRepositorio,
+    private readonly indicePacientes: IndicePacientes,
   ) {}
 
   async ejecutar(
@@ -94,6 +97,9 @@ export class AbrirHistoriaClinica {
       });
       try {
         const historia = await this.historiasRepositorio.crear(nueva);
+        if (documentoEnlazable(historia.datos)) {
+          await this.indicePacientes.enlazar(historia.id, historia.datos);
+        }
         // Sin datos clínicos en la auditoría: solo identificadores.
         await this.auditoria.registrar({
           usuarioId: contexto.usuarioId,
@@ -112,6 +118,8 @@ export class AbrirHistoriaClinica {
             signosVitales: [],
             lesiones: [],
             intervenciones: [],
+            valoracionesDownton: [],
+            firmasHistoria: [],
           },
           creada: true,
         };

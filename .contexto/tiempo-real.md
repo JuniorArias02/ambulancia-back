@@ -14,7 +14,7 @@ El WebSocket es un **servidor aparte**: el proyecto `../../webSocket` (NestJS + 
 | Verificación de sesiones | `authentication` → `POST /interno/sesiones/verificar` | El servidor WebSocket pregunta aquí por cada conexión y cada 60 s |
 | Conexiones y salas | `webSocket/` | Quién entra a cada sala según el rol, revalidación y deduplicación |
 
-Contrato para los clientes: [`docs/api-tiempo-real-frontend.md`](../docs/api-tiempo-real-frontend.md).
+El contrato para los clientes (web y app) está en la sección "Contrato para los clientes" de este archivo: los eventos WebSocket no aparecen en Swagger.
 
 ## Flujo
 
@@ -64,7 +64,51 @@ Caso de uso → guarda → audita → PublicadorEventos.publicar({ tipo, ids })
 
 ## Seguimiento para ciudadanos (2026-11-04)
 
-Evento nuevo `seguimiento.actualizado`, solo a `usuario:{informante}`, desde `NotificadorSeguimientoCiudadano`. El servidor `webSocket/` todavía debe aceptar el rol `ciudadano` y el evento: ver `docs/WEBSOCKET_SEGUIMIENTO_CIUDADANO.md` y [ciudadanos.md](ciudadanos.md).
+Evento nuevo `seguimiento.actualizado`, solo a `usuario:{informante}`, desde `NotificadorSeguimientoCiudadano` (ver [ciudadanos.md](ciudadanos.md)).
+
+**Pendiente en el servidor `webSocket/`** (la API ya lo emite):
+- aceptar el rol `ciudadano`, con la sala `usuario:{id}` y **nunca** la `central`;
+- agregar `seguimiento.actualizado` a la lista blanca de eventos.
+
+Hasta entonces, la API registra `No se entregó seguimiento.actualizado` en su log y la app del ciudadano consulta por REST.
+
+## Contrato para los clientes
+
+**Conexión:** una por app (Socket.IO), con el token de acceso. El servidor responde con uno de estos eventos:
+
+| Evento | Significa | El cliente debe |
+| --- | --- | --- |
+| `conectado` `{ usuarioId, rol, salas }` | Sesión válida, ya está en sus salas | **Reconsultar el REST**, porque lo ocurrido mientras estaba desconectado no se reenvía |
+| `error_autenticacion` `{ mensaje }` | Token inválido o vencido, sesión cerrada, usuario bloqueado o **cambio de rol** | Cerrar la sesión; no reintentar con el mismo token |
+| `error_conexion` `{ mensaje }` | Falla temporal | Reintentar con espera progresiva (de 1 s a 30 s) |
+
+**Salas** (las asigna el servidor según el rol):
+
+| Rol | Recibe |
+| --- | --- |
+| `administrador`, `despachador` | Todo lo de la sala `central` |
+| `conductor`, `paramedico` | Solo `mi_servicio.actualizado` de **su** servicio (`usuario:{id}`) |
+| `ciudadano` | Solo `seguimiento.actualizado` de **sus** reportes (`usuario:{id}`); nunca la central |
+
+**Eventos.** La forma de cada carga es **la misma del REST**, así que el cliente reutiliza sus tipos.
+
+| Evento | Carga | Cuándo |
+| --- | --- | --- |
+| `emergencia.creada` | `{ emergencia }` (como `GET /emergencias/{id}`) | Registro |
+| `emergencia.actualizada` | `{ emergencia, cambios: string[] }` | Edición, cancelación, duplicada, cambio de estado (`['estado']`) |
+| `emergencia.posible_duplicado` | `{ emergenciaId, numeroEmergencia, posibles }` | Al crearla, si hay candidatas: **solo una sugerencia** |
+| `asignacion.creada` / `asignacion.actualizada` | `{ asignacion }` (como `GET /asignaciones/{id}`) | Despacho; avance o cancelación |
+| `asignacion.ruta_actualizada` | `{ ruta }` (como `GET /asignaciones/{id}/ruta`) | Ruta nueva: despacho, primer GPS o desvío. Llega también a la tripulación |
+| `ambulancia.actualizada` | `{ ambulancia }` | Alta, edición, estado, despacho, fin de servicio o de turno |
+| `ambulancia.ubicacion_actualizada` | `{ ambulanciaId, asignacionId, latitud, longitud, velocidad, registradaEn }` | GPS, máximo uno cada 3 s por ambulancia |
+| `turno.actualizado` | `{ turno }` | Inicio, cambio de integrantes o fin |
+| `mi_servicio.actualizado` | La misma forma que `GET /mi-servicio` | Lo descrito en "Puntos de publicación" |
+| `seguimiento.actualizado` | `{ seguimiento }` (como `GET /ciudadanos/emergencias/{id}/seguimiento`) | Despacho, movimiento, etapa o ruta. Termina con `disponible: false` |
+
+**Reglas para los clientes:**
+- descartar los eventos con un `id` ya visto, o con un `ocurridoEn` anterior al último aplicado para el mismo recurso (un reintento puede llegar tarde);
+- mostrar el estado de la conexión;
+- desuscribirse al desmontar.
 
 ## Pendiente
 

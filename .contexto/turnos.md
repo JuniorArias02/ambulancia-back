@@ -1,6 +1,6 @@
 # Turnos y tripulaciones (dentro de `src/modules/ambulances`)
 
-> Contexto general en [00-general.md](00-general.md). **Desde el 2026-11-01 la tripulación la arma cada persona desde la app: ver [seleccion-ambulancia.md](seleccion-ambulancia.md).** Guía para frontend: `docs/instrucciones-agente-frontend.md`.
+> Contexto general en [00-general.md](00-general.md). **Desde el 2026-11-01 la tripulación la arma cada persona desde la app: ver [seleccion-ambulancia.md](seleccion-ambulancia.md).**
 
 ## Qué hace
 

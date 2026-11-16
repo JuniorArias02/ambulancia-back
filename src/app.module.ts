@@ -22,6 +22,7 @@ import { UsersModule } from './modules/users/users.module.js';
 import { CitizensModule } from './modules/citizens/citizens.module.js';
 import { ChecklistsModule } from './modules/checklists/checklists.module.js';
 import { InventoryModule } from './modules/inventory/inventory.module.js';
+import { SignaturesModule } from './modules/signatures/signatures.module.js';
 
 @Module({
   imports: [
@@ -44,6 +45,7 @@ import { InventoryModule } from './modules/inventory/inventory.module.js';
     CitizensModule,
     ChecklistsModule,
     InventoryModule,
+    SignaturesModule,
     GeocodingModule,
     RoutingModule,
     NotificationsModule,
