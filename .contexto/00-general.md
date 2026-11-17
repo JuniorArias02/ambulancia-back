@@ -24,6 +24,7 @@
 > - [auditoria.md](auditoria.md): registro de eventos sensibles
 > - [consulta-clinica.md](consulta-clinica.md): consulta de historias clínicas en la web (bandeja, ingreso o servicio, trazabilidad)
 > - [firmas.md](firmas.md): firma registrada de los profesionales (cifrada) que se estampa al cerrar la historia clínica
+> - [semilla-aph-demo.md](semilla-aph-demo.md): servicios APH de demostración para desarrollo (`npm run db:semilla:aph-demo`)
 >
 > Diseños aún sin implementar (se discuten antes de escribir código): [`../.proximodesarrollo/`](../.proximodesarrollo/README.md). Hoy: ninguno; lo pendiente está al final de [firmas.md](firmas.md) y [consulta-clinica.md](consulta-clinica.md). Guías para el frontend y Flutter por entregar: `../.guias-temporales/` (se borran una vez entregadas).
 
@@ -50,6 +51,7 @@ Backend del sistema de **despacho de ambulancias y atención prehospitalaria** d
 docker compose up -d        # levantar MySQL
 npm run db:migrar           # prisma migrate dev
 npm run db:semilla:inventario-demo   # solo desarrollo: bodega, lotes y equipos DEMO y abastecimiento de ambulancias
+npm run db:semilla:aph-demo          # solo desarrollo: 14 servicios APH completos de todas las modalidades (ver semilla-aph-demo.md)
 npm run db:semilla          # roles, tipos de ambulancia y administrador inicial
 npm run start:dev           # API en http://localhost:3000/api/v1
 npm run typecheck && npm run lint && npm test

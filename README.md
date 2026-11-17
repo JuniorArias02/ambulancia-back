@@ -28,6 +28,7 @@ Para el día a día basta con `docker compose up -d` y `npm run start:dev`: Pris
 | `npm run db:migrar -- --name <nombre>` | Tras cambiar `schema.prisma`: crea y aplica una migración nueva |
 | `npx prisma generate` | Regenera el cliente en `src/generated/prisma` |
 | `npm run db:semilla` | Sincroniza roles y crea el administrador si no existe (idempotente) |
+| `npm run db:semilla:aph-demo` | Solo desarrollo: servicios APH de demostración, de la llamada a la historia firmada (requiere `SEMILLA_DEMO_CONTRASENA`) |
 
 Convención del esquema: modelos en PascalCase singular y campos en camelCase; tablas y columnas físicas en snake_case mediante `@@map` / `@map`. No edite una migración ya aplicada: cree una nueva.
 

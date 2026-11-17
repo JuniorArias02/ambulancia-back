@@ -25,7 +25,8 @@
     "db:migrar": "prisma migrate dev",
     "db:desplegar": "prisma migrate deploy",
     "db:semilla": "prisma db seed",
-    "db:semilla:inventario-demo": "tsx prisma/semilla_inventario_demo.ts"
+    "db:semilla:inventario-demo": "tsx prisma/semilla_inventario_demo.ts",
+    "db:semilla:aph-demo": "tsc -p tsconfig.semillas.json && node dist/semillas/prisma/semilla_aph_demo.js"
   },
   "dependencies": {
     "@nestjs/common": "^12.0.1",
